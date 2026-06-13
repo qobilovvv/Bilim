@@ -15,7 +15,9 @@ eggs/
 pip-wheel-metadata/
 *.egg
 
-./docker/.volumes
+# Docker volumes
+docker/.volumes/
+**/.volumes/
 
 # Installer logs
 pip-log.txt
