@@ -1,11 +1,77 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, status
+from src.models.user import User
+from src.schemas.auth_schemas import (
+    UserLoginRequest,
+    UserRegisterRequest,
+    UserResponse,
+    AuthResponse,
+    TokenResponse,
+    ProfileUpdateRequest,
+    PasswordUpdateRequest,
+)
+from src.services.users_scv import UsersService, get_users_service
+from src.security.dependencies import get_current_user
 
-router = APIRouter()
+router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-@router.post("/login")
-async def login():
-    ...
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def register(
+    data: UserRegisterRequest,
+    service: UsersService = Depends(get_users_service)
+):
+    return await service.register_user(data)
 
-@router.post("/register")
-async def register():
-    ...
+@router.post("/login", response_model=AuthResponse)
+async def login(
+    data: UserLoginRequest,
+    service: UsersService = Depends(get_users_service)
+):
+    user, tokens = await service.login_user(data)
+    return AuthResponse(
+        user=UserResponse.model_validate(user),
+        tokens=TokenResponse(
+            access_token=tokens.access_token,
+            refresh_token=tokens.refresh_token,
+            token_type=tokens.token_type,
+        )
+    )
+
+@router.post("/admin/login", response_model=AuthResponse)
+async def admin_login(
+    data: UserLoginRequest,
+    service: UsersService = Depends(get_users_service)
+):
+    user, tokens = await service.login_admin(data)
+    return AuthResponse(
+        user=UserResponse.model_validate(user),
+        tokens=TokenResponse(
+            access_token=tokens.access_token,
+            refresh_token=tokens.refresh_token,
+            token_type=tokens.token_type,
+        )
+    )
+
+@router.get("/profile", response_model=UserResponse)
+async def get_profile(current_user: User = Depends(get_current_user)):
+    return current_user
+
+@router.put("/profile", response_model=UserResponse)
+async def update_profile(
+    data: ProfileUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    service: UsersService = Depends(get_users_service),
+):
+    return await service.update_profile(current_user.id, data)
+
+@router.put("/password", status_code=status.HTTP_200_OK)
+async def update_password(
+    data: PasswordUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    service: UsersService = Depends(get_users_service),
+):
+    await service.update_password(current_user.id, data)
+    return {"message": "Password updated successfully"}
+
+@router.get("/me", response_model=UserResponse)
+async def get_me(current_user: User = Depends(get_current_user)):
+    return current_user
