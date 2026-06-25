@@ -1,4 +1,4 @@
-name: Deploy Bilim Backend
+name: nginx
 
 on:
   push:

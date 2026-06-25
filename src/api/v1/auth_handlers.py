@@ -9,8 +9,12 @@ from src.schemas.auth_schemas import (
     TokenResponse,
     ProfileUpdateRequest,
     PasswordUpdateRequest,
+    ForgotPasswordSendCodeRequest,
+    ForgotPasswordVerifyCodeRequest,
+    ForgotPasswordResetRequest,
 )
 from src.services.users_scv import UsersService, get_users_service
+from src.services.password_reset_scv import PasswordResetService, get_password_reset_service
 from src.security.dependencies import get_current_user
 
 router = APIRouter(prefix="/auth")
@@ -98,3 +102,27 @@ async def update_password(
 @router.get("/me", response_model=UserResponse, tags=["auth"])
 async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+@router.post("/forgot-password/send-code", status_code=status.HTTP_200_OK, tags=["auth"])
+async def send_code(
+    data: ForgotPasswordSendCodeRequest,
+    service: PasswordResetService = Depends(get_password_reset_service),
+):
+    await service.send_reset_code(data.phone)
+    return {"message": "Verification code sent successfully"}
+
+@router.post("/forgot-password/verify-code", status_code=status.HTTP_200_OK, tags=["auth"])
+async def verify_code(
+    data: ForgotPasswordVerifyCodeRequest,
+    service: PasswordResetService = Depends(get_password_reset_service),
+):
+    token = await service.verify_reset_code(data.phone, data.code)
+    return {"token": token, "message": "Verification code verified successfully"}
+
+@router.post("/forgot-password/new-password", status_code=status.HTTP_200_OK, tags=["auth"])
+async def new_password(
+    data: ForgotPasswordResetRequest,
+    service: PasswordResetService = Depends(get_password_reset_service),
+):
+    await service.reset_password(data.phone, data.token, data.new_password)
+    return {"message": "Password reset successfully"}

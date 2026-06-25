@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
+    # Eskiz SMS settings
+    ESKIZ_BASE_URL: str = "https://notify.eskiz.uz/api"
+    ESKIZ_EMAIL: str = ""
+    ESKIZ_PASSWORD: str = ""
+    ESKIZ_FROM: str = "4546"
+
     class Config:
         env_file = ".env"
         extra = "ignore"

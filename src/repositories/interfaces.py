@@ -41,3 +41,19 @@ class ICategoriesRepository(ABC):
 
     @abstractmethod
     async def delete_category(self, category: Category) -> None: ...
+
+
+from src.models.password_reset import PasswordResetCode
+
+class IPasswordResetRepository(ABC):
+    @abstractmethod
+    async def create_reset_code(self, reset_code: PasswordResetCode) -> PasswordResetCode: ...
+
+    @abstractmethod
+    async def get_active_code(self, phone: str, code: str) -> PasswordResetCode | None: ...
+
+    @abstractmethod
+    async def get_active_token(self, phone: str, token: str) -> PasswordResetCode | None: ...
+
+    @abstractmethod
+    async def update_reset_code(self, reset_code: PasswordResetCode) -> PasswordResetCode: ...

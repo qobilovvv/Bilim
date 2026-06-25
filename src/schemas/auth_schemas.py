@@ -60,3 +60,15 @@ class TokenResponse(BaseModel):
 class AuthResponse(BaseModel):
     user: UserResponse
     tokens: TokenResponse
+
+class ForgotPasswordSendCodeRequest(BaseModel):
+    phone: str
+
+class ForgotPasswordVerifyCodeRequest(BaseModel):
+    phone: str
+    code: str
+
+class ForgotPasswordResetRequest(BaseModel):
+    phone: str
+    token: str
+    new_password: str
