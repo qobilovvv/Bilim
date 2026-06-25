@@ -1,10 +1,11 @@
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.infrastructure.database import get_db_session
-from src.models.user import User, UserType
+from src.models.user import User, UserType, SellerProfile
 from src.repositories.users_repo import UsersRepository
 from src.schemas.auth_schemas import (
     UserLoginRequest,
+    AdminLoginRequest,
     UserRegisterRequest,
     ProfileUpdateRequest,
     PasswordUpdateRequest,
@@ -37,9 +38,37 @@ class UsersService:
         )
         return await self.repo.create_user(new_user)
 
+    async def register_seller(self, data: UserRegisterRequest) -> User:
+        # Check if phone number is already registered
+        existing_user = await self.repo.get_by_phone(data.phone)
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Phone number already registered"
+            )
+
+        # Hash the password
+        hashed = hash_password(data.password)
+        
+        # Create user as seller and initialize an empty seller profile
+        new_user = User(
+            first_name=data.first_name,
+            phone=data.phone,
+            password=hashed,
+            type=UserType.SELLER,
+            is_active=True,
+            is_superuser=False,
+            seller_profile=SellerProfile(
+                years_of_experience=None,
+                portfolio=None,
+                description=None
+            )
+        )
+        return await self.repo.create_user(new_user)
+
     async def login_user(self, data: UserLoginRequest) -> tuple[User, TokenPair]:
-        # Login using username which represents the phone number
-        user = await self.repo.get_by_phone(data.username)
+        # Login using phone directly (from UserLoginRequest)
+        user = await self.repo.get_by_phone(data.phone)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -65,14 +94,50 @@ class UsersService:
         tokens = create_token_pair(subject=str(user.id), role=user.type)
         return user, tokens
 
-    async def login_admin(self, data: UserLoginRequest) -> tuple[User, TokenPair]:
-        user, tokens = await self.login_user(data)
+    async def login_admin(self, data: AdminLoginRequest) -> tuple[User, TokenPair]:
+        # Authenticate admin by username
+        user = await self.repo.get_by_username(data.username)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is inactive"
+            )
+
+        # Verify password hash
+        if not verify_password(data.password, user.password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
         if user.type != UserType.ADMIN:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied: Admin privileges required"
             )
+
+        # Generate JWT token pair
+        tokens = create_token_pair(subject=str(user.id), role=user.type)
         return user, tokens
+
+
+    async def login_seller(self, data: UserLoginRequest) -> tuple[User, TokenPair]:
+        user, tokens = await self.login_user(data)
+        if user.type != UserType.SELLER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Seller privileges required"
+            )
+        return user, tokens
+
 
     async def update_profile(self, user_id: int, data: ProfileUpdateRequest) -> User:
         user = await self.repo.get_by_id(user_id)
@@ -92,9 +157,22 @@ class UsersService:
                 )
             user.phone = data.phone
 
+        # Update username if provided and changed
+        if data.username is not None and data.username != user.username:
+            username_val = data.username.strip() if data.username else None
+            if username_val:
+                existing_username = await self.repo.get_by_username(username_val)
+                if existing_username:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Username already registered by another user"
+                    )
+                user.username = username_val
+            else:
+                user.username = None
+
         # Update email if provided and changed
         if data.email is not None and data.email != user.email:
-            # If the user is setting email to empty string, handle it as None or empty
             email_val = data.email.strip() if data.email else None
             if email_val:
                 existing_email = await self.repo.get_by_email(email_val)
@@ -111,8 +189,25 @@ class UsersService:
             user.first_name = data.first_name
 
         if data.last_name is not None:
-            # last_name is optional, so it can be None or empty
             user.last_name = data.last_name.strip() if data.last_name else None
+
+        # Update seller specific profile fields if type is SELLER
+        if user.type == UserType.SELLER:
+            if not user.seller_profile:
+                user.seller_profile = SellerProfile(
+                    years_of_experience=None,
+                    portfolio=None,
+                    description=None
+                )
+            
+            if data.years_of_experience is not None:
+                user.seller_profile.years_of_experience = data.years_of_experience
+                
+            if data.portfolio is not None:
+                user.seller_profile.portfolio = data.portfolio.strip() if data.portfolio else None
+                
+            if data.description is not None:
+                user.seller_profile.description = data.description.strip() if data.description else None
 
         return await self.repo.update_user(user)
 

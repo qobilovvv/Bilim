@@ -19,7 +19,7 @@ docker compose -f docker/docker-compose.yml run --rm api python -m scripts.creat
 ### Option B: Command Line Arguments
 You can supply all required fields directly as arguments:
 ```bash
-docker compose -f docker/docker-compose.yml run --rm api python -m scripts.create_admin --phone "998991234567" --password "secureadminpass" --full-name "System Admin"
+docker compose -f docker/docker-compose.yml run --rm api python -m scripts.create_admin --username "admin" --password "secureadminpass" --first-name "System Admin"
 ```
 
 ---
@@ -39,7 +39,7 @@ If you are running the database and application directly on your host machine:
      ```
    * **Arguments mode**:
      ```bash
-     python -m scripts.create_admin --phone "998991234567" --password "secureadminpass" --full-name "System Admin"
+     python -m scripts.create_admin --username "admin" --password "secureadminpass" --first-name "System Admin"
      ```
 
 *Note: The script reads the database configuration directly from your `.env` file.*

@@ -19,7 +19,9 @@ services:
       - ./../src:/app/src:delegated
       - ./../alembic.ini:/app/alembic.ini:delegated
       - ./../alembic:/app/alembic:delegated
+      - ./../scripts:/app/scripts:delegated
       - media_data:/app/media
+
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz').read()"]
       interval: 10s
