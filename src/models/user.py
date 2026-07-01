@@ -20,11 +20,15 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=True)
     password = Column(String, nullable=False)
 
+    avatar = Column(String, nullable=True)  # Relative path to avatar image in media/
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    last_login = Column(DateTime(timezone=True), nullable=True)
 
     type = Column(String, default=UserType.USER, nullable=False)
     is_active = Column(Boolean, default=True)
+    is_blocked = Column(Boolean, default=False)
     is_superuser = Column(Boolean, default=False)
 
     # One-to-one relationship with SellerProfile

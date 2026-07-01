@@ -28,11 +28,13 @@ class UserResponse(BaseModel):
     phone: str | None = None
     username: str | None = None
     email: str | None = None
+    avatar: str | None = None
     type: str
     is_active: bool
     is_superuser: bool
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    last_login: datetime | None = None
     seller_profile: SellerProfileResponse | None = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -72,3 +74,30 @@ class ForgotPasswordResetRequest(BaseModel):
     phone: str
     token: str
     new_password: str
+
+
+class UserListItemResponse(BaseModel):
+    id: int
+    full_name: str
+    avatar: str | None = None
+    status: str  # "active" | "inactive" | "blocked"
+    created_at: datetime | None = None
+    bought_courses_count: int = 0
+    last_login: datetime | None = None
+
+
+class UserListResponse(BaseModel):
+    items: list[UserListItemResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class AdminUserUpdateRequest(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    is_active: bool | None = None
+    is_blocked: bool | None = None
+

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 from src.models.user import User
 from src.schemas.auth_schemas import (
     UserLoginRequest,
@@ -17,7 +17,7 @@ from src.services.users_scv import UsersService, get_users_service
 from src.services.password_reset_scv import PasswordResetService, get_password_reset_service
 from src.security.dependencies import get_current_user
 
-router = APIRouter(prefix="/auth")
+router = APIRouter(prefix="")
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED, tags=["auth"])
 async def register(
@@ -78,17 +78,39 @@ async def seller_login(
         )
     )
 
+def profile_update_form(
+    first_name: str | None = Form(None),
+    last_name: str | None = Form(None),
+    phone: str | None = Form(None),
+    username: str | None = Form(None),
+    email: str | None = Form(None),
+    years_of_experience: int | None = Form(None),
+    portfolio: str | None = Form(None),
+    description: str | None = Form(None),
+) -> ProfileUpdateRequest:
+    return ProfileUpdateRequest(
+        first_name=first_name,
+        last_name=last_name,
+        phone=phone,
+        username=username,
+        email=email,
+        years_of_experience=years_of_experience,
+        portfolio=portfolio,
+        description=description,
+    )
+
 @router.get("/profile", response_model=UserResponse, tags=["profile"])
 async def get_profile(current_user: User = Depends(get_current_user)):
     return current_user
 
 @router.put("/profile", response_model=UserResponse, tags=["profile"])
 async def update_profile(
-    data: ProfileUpdateRequest,
+    data: ProfileUpdateRequest = Depends(profile_update_form),
+    avatar: UploadFile | None = File(None),
     current_user: User = Depends(get_current_user),
     service: UsersService = Depends(get_users_service),
 ):
-    return await service.update_profile(current_user.id, data)
+    return await service.update_profile(current_user.id, data, avatar)
 
 @router.put("/password", status_code=status.HTTP_200_OK, tags=["profile"])
 async def update_password(

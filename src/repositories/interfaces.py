@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 from src.models.user import User
 from src.models.category import Category
 
@@ -15,12 +16,25 @@ class IUsersRepository(ABC):
     @abstractmethod
     async def get_by_email(self, email: str) -> User | None: ...
 
-
     @abstractmethod
     async def create_user(self, user: User) -> User: ...
 
     @abstractmethod
     async def update_user(self, user: User) -> User: ...
+
+    @abstractmethod
+    async def delete_user(self, user: User) -> None: ...
+
+    @abstractmethod
+    async def list_users(
+        self,
+        status_filter: str | None,
+        search: str | None,
+        date_from: datetime | None,
+        date_to: datetime | None,
+        offset: int,
+        limit: int,
+    ) -> tuple[list[User], int]: ...
 
 
 class ICategoriesRepository(ABC):
