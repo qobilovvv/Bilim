@@ -1,6 +1,6 @@
-# VPS Setup & Traefik Deployment Guide
+# VPS Setup & Nginx Deployment Guide
 
-This guide explains how to set up a brand-new Ubuntu VPS from scratch to host the project, integrate GitHub Actions CI/CD, and configure Traefik as a reverse proxy with automated SSL (Let's Encrypt).
+This guide explains how to set up a brand-new Ubuntu VPS from scratch to host the project, configure Nginx as a reverse proxy with automated SSL (Let's Encrypt), and deploy using the GitHub Actions CI/CD pipeline.
 
 ---
 
@@ -42,11 +42,11 @@ ufw enable
 
 ## Part 2: Folder Structure & Git Setup
 
-We will place the application in `/var/www/backend`.
+We will place the application in `/var/www/bilim`.
 
 ### 1. Create the Project Directory
 ```bash
-mkdir -p /var/www/backend
+mkdir -p /var/www/bilim
 ```
 
 ### 2. Set Up SSH Key for GitHub Actions
@@ -73,93 +73,80 @@ GitHub Actions needs access to run commands on your server.
 
 ### 3. Initialize Git Repository on the Server
 ```bash
-cd /var/www/backend
+cd /var/www/bilim
 git init
 git remote add origin YOUR_GITHUB_REPOSITORY_SSH_OR_HTTPS_URL
 ```
 
 ---
 
-## Part 3: Setting Up Traefik Reverse Proxy
+## Part 3: Setting Up Nginx Reverse Proxy
 
-To route multiple websites/services and get automatic SSL certificates, we will run Traefik on the VPS.
+To route incoming traffic on ports 80/443 to your backend container running on port 8000, install and configure Nginx on the host VPS.
 
-### 1. Create a Docker Network for Traefik
+### 1. Install Nginx
 ```bash
-docker network create web
+sudo apt update
+sudo apt install nginx -y
 ```
 
-### 2. Create the Traefik Directory and Configs
-Create a folder for Traefik configuration:
+### 2. Install Certbot for Let's Encrypt SSL
 ```bash
-mkdir -p /opt/traefik
-touch /opt/traefik/acme.json
-chmod 600 /opt/traefik/acme.json
+sudo apt install certbot python3-certbot-nginx -y
 ```
 
-Create `/opt/traefik/docker-compose.yml`:
-```yaml
-version: "3.8"
-
-services:
-  traefik:
-    image: traefik:v2.10
-    container_name: traefik
-    restart: always
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /opt/traefik/acme.json:/acme.json
-    command:
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-      # Global redirection to HTTPS
-      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
-      # Let's Encrypt configurations
-      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
-      - "--certificatesresolvers.myresolver.acme.email=YOUR_EMAIL@example.com"
-      - "--certificatesresolvers.myresolver.acme.storage=/acme.json"
-    networks:
-      - web
-
-networks:
-  web:
-    external: true
-```
-Replace `YOUR_EMAIL@example.com` with your actual email address (used for SSL expiry notifications).
-
-Start Traefik:
+### 3. Create Nginx Site Configuration
+Create a configuration file for your backend API:
 ```bash
-cd /opt/traefik
-docker compose up -d
+sudo nano /etc/nginx/sites-available/backend
+```
+
+Paste the following configuration, replacing `api.yourdomain.com` with your actual domain or IP:
+```nginx
+server {
+    listen 80;
+    server_name api.yourdomain.com;
+
+    client_max_body_size 100M;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+### 4. Enable Configuration and Restart Nginx
+Enable the site by symlinking it to the `sites-enabled` directory:
+```bash
+sudo ln -s /etc/nginx/sites-available/backend /etc/nginx/sites-enabled/
+```
+
+Test Nginx configuration:
+```bash
+sudo nginx -t
+```
+
+If the test is successful, reload Nginx:
+```bash
+sudo systemctl reload nginx
 ```
 
 ---
 
-## Part 4: Connect Backend to Traefik
+## Part 4: Configure Let's Encrypt SSL
 
-To route traffic from Traefik to your backend `api` container, modify the backend `api` service inside `docker-compose.prod.yml` on your server to include Traefik labels and connect it to the `web` network.
-
-### Example configuration labels to add to `api` in `docker-compose.prod.yml`:
-```yaml
-  api:
-    # ... existing configs ...
-    networks:
-      - shared_network
-      - web
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.bilim-api.rule=Host(`api.yourdomain.com`)" # Replace with your domain
-      - "traefik.http.routers.bilim-api.entrypoints=websecure"
-      - "traefik.http.routers.bilim-api.tls.certresolver=myresolver"
-      - "traefik.http.services.bilim-api.loadbalancer.server.port=8000"
+Run Certbot to automatically fetch and configure the SSL certificate for your domain:
+```bash
+sudo certbot --nginx -d api.yourdomain.com
 ```
-*(Also add `web` network as external at the bottom of the compose file).*
+Follow the interactive prompts to complete the setup. Certbot will automatically rewrite the Nginx configuration to route HTTPS traffic securely and redirect HTTP to HTTPS.
 
 ---
 
@@ -169,12 +156,12 @@ Before running the GitHub Actions workflow for the first time:
 
 1. **Pull the code manually on the server**:
    ```bash
-   cd /var/www/backend
+   cd /var/www/bilim
    git fetch origin master
    git reset --hard origin/master
    ```
 2. **Create the production environment file**:
-   Create `/var/www/backend/.env` with your production variables:
+   Create `/var/www/bilim/.env` with your production variables:
    ```bash
    POSTGRES_DB=app
    POSTGRES_USER=app
@@ -185,11 +172,11 @@ Before running the GitHub Actions workflow for the first time:
    ```
 3. **Run your migrations**:
    ```bash
-   docker compose -f docker-compose.prod.yml run --rm api alembic upgrade head
+   docker compose -f docker/docker-compose.prod.yml run --rm api alembic upgrade head
    ```
 4. **Boot the project**:
    ```bash
-   docker compose -f docker-compose.prod.yml up -d --build
+   docker compose -f docker/docker-compose.prod.yml up -d --build
    ```
 
 Subsequent push commits to the `master` branch will trigger the GitHub Actions workflow to auto-pull, rebuild, and hot-reload the containers!
