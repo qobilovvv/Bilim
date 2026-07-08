@@ -54,6 +54,29 @@ async def create_course(
 ):
     return await service.create_course(data, current_user)
 
+@router.get("/courses/my-courses", response_model=CourseListResponse)
+async def list_my_courses(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_teacher_or_admin),
+    service: CoursesService = Depends(get_courses_service),
+):
+    items, total = await service.list_courses(
+        category_id=None,
+        type_filter=None,
+        teacher_id=current_user.id,
+        search=None,
+        active_only=False,
+        page=page,
+        page_size=page_size,
+    )
+    return CourseListResponse(
+        items=[CourseListItemResponse.model_validate(c) for c in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
 @router.get("/courses/{id}", response_model=CourseResponse)
 async def get_course(id: int, service: CoursesService = Depends(get_courses_service)):
     return await service.get_course(id)
