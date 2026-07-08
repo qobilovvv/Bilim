@@ -34,16 +34,16 @@ async def list_courses(
     teacher_id: int | None = Query(None),
     search: str | None = Query(None),
     active_only: bool = Query(True),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     service: CoursesService = Depends(get_courses_service),
 ):
-    items, total = await service.list_courses(category_id, type, teacher_id, search, active_only, page, page_size)
+    items, total = await service.list_courses(category_id, type, teacher_id, search, active_only, limit, offset)
     return CourseListResponse(
-        items=[CourseListItemResponse.model_validate(c) for c in items],
         total=total,
-        page=page,
-        page_size=page_size,
+        limit=limit,
+        offset=offset,
+        result=[CourseListItemResponse.model_validate(c) for c in items],
     )
 
 @router.post("/courses", response_model=CourseResponse, status_code=status.HTTP_201_CREATED)
@@ -56,8 +56,8 @@ async def create_course(
 
 @router.get("/courses/my-courses", response_model=CourseListResponse)
 async def list_my_courses(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_teacher_or_admin),
     service: CoursesService = Depends(get_courses_service),
 ):
@@ -67,14 +67,14 @@ async def list_my_courses(
         teacher_id=current_user.id,
         search=None,
         active_only=False,
-        page=page,
-        page_size=page_size,
+        limit=limit,
+        offset=offset,
     )
     return CourseListResponse(
-        items=[CourseListItemResponse.model_validate(c) for c in items],
         total=total,
-        page=page,
-        page_size=page_size,
+        limit=limit,
+        offset=offset,
+        result=[CourseListItemResponse.model_validate(c) for c in items],
     )
 
 @router.get("/courses/{id}", response_model=CourseResponse)

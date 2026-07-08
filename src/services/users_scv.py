@@ -282,17 +282,18 @@ class UsersService:
         search: str | None,
         date_from: datetime | None,
         date_to: datetime | None,
-        page: int,
-        page_size: int,
+        limit: int,
+        offset: int,
+        user_type: str = UserType.USER,
     ) -> tuple[list[UserListItemResponse], int]:
-        offset = (page - 1) * page_size
         users, total = await self.repo.list_users(
             status_filter=status_filter,
             search=search,
             date_from=date_from,
             date_to=date_to,
             offset=offset,
-            limit=page_size,
+            limit=limit,
+            user_type=user_type,
         )
 
         items = []
@@ -314,6 +315,7 @@ class UsersService:
                 id=user.id,
                 full_name=full_name,
                 avatar=user.avatar,
+                phone=user.phone,
                 status=user_status,
                 created_at=user.created_at,
                 bought_courses_count=0,  # TODO: implement when courses model is ready

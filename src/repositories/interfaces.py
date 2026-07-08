@@ -34,6 +34,7 @@ class IUsersRepository(ABC):
         date_to: datetime | None,
         offset: int,
         limit: int,
+        user_type: str,
     ) -> tuple[list[User], int]: ...
 
 

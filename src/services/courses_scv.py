@@ -46,11 +46,10 @@ class CoursesService:
         teacher_id: int | None,
         search: str | None,
         active_only: bool,
-        page: int,
-        page_size: int,
+        limit: int,
+        offset: int,
     ) -> tuple[list[Course], int]:
-        offset = (page - 1) * page_size
-        return await self.repo.list_courses(category_id, type_filter, teacher_id, search, active_only, offset, page_size)
+        return await self.repo.list_courses(category_id, type_filter, teacher_id, search, active_only, offset, limit)
 
     async def get_course(self, id: int) -> Course:
         course = await self.repo.get_by_id(id)

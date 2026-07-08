@@ -17,6 +17,15 @@ class CategoryBrief(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+class TeacherModerationInfo(BaseModel):
+    id: int
+    first_name: str
+    last_name: str | None = None
+    avatar: str | None = None
+    phone: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
 # ---------- Materials ----------
 
 class MaterialResponse(BaseModel):
@@ -194,10 +203,29 @@ class CourseListItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class CourseListResponse(BaseModel):
-    items: list[CourseListItemResponse]
     total: int
-    page: int
-    page_size: int
+    limit: int
+    offset: int
+    result: list[CourseListItemResponse]
+
+class CourseModerationListItemResponse(BaseModel):
+    id: int
+    name: str
+    category: CategoryBrief
+    teacher: TeacherModerationInfo
+    price: int
+    type: str
+    preview_image: str | None = None
+    is_active: bool
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+class CourseModerationListResponse(BaseModel):
+    total: int
+    limit: int
+    offset: int
+    result: list[CourseModerationListItemResponse]
 
 class CourseResponse(BaseModel):
     id: int

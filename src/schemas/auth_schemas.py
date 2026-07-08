@@ -80,6 +80,7 @@ class UserListItemResponse(BaseModel):
     id: int
     full_name: str
     avatar: str | None = None
+    phone: str | None = None
     status: str  # "active" | "inactive" | "blocked"
     created_at: datetime | None = None
     bought_courses_count: int = 0
@@ -87,10 +88,10 @@ class UserListItemResponse(BaseModel):
 
 
 class UserListResponse(BaseModel):
-    items: list[UserListItemResponse]
     total: int
-    page: int
-    page_size: int
+    limit: int
+    offset: int
+    result: list[UserListItemResponse]
 
 
 class AdminUserUpdateRequest(BaseModel):

@@ -60,9 +60,9 @@ class UsersRepository(IUsersRepository):
         date_to: datetime | None,
         offset: int,
         limit: int,
+        user_type: str = UserType.USER,
     ) -> tuple[list[User], int]:
-        # Base filter: only regular users (not sellers, admins, authors)
-        base_filter = User.type == UserType.USER
+        base_filter = User.type == user_type
 
         # Status filter
         conditions = [base_filter]
