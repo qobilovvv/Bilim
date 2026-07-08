@@ -45,3 +45,13 @@ async def get_current_admin(
             detail="Access denied: Admin privileges required"
         )
     return current_user
+
+async def get_current_teacher_or_admin(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    if current_user.type not in (UserType.ADMIN, UserType.SELLER):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Admin or teacher privileges required"
+        )
+    return current_user

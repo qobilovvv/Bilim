@@ -71,3 +71,88 @@ class IPasswordResetRepository(ABC):
 
     @abstractmethod
     async def update_reset_code(self, reset_code: PasswordResetCode) -> PasswordResetCode: ...
+
+
+from src.models.course import Course
+from src.models.module import Module
+from src.models.lesson import Lesson
+from src.models.material import Material
+from src.models.homework import Homework
+
+class ICoursesRepository(ABC):
+    @abstractmethod
+    async def get_by_id(self, id: int) -> Course | None: ...
+
+    @abstractmethod
+    async def list_courses(
+        self,
+        category_id: int | None,
+        type_filter: str | None,
+        teacher_id: int | None,
+        search: str | None,
+        active_only: bool,
+        offset: int,
+        limit: int,
+    ) -> tuple[list[Course], int]: ...
+
+    @abstractmethod
+    async def create_course(self, course: Course) -> Course: ...
+
+    @abstractmethod
+    async def update_course(self, course: Course) -> Course: ...
+
+    @abstractmethod
+    async def delete_course(self, course: Course) -> None: ...
+
+
+class IModulesRepository(ABC):
+    @abstractmethod
+    async def get_by_id(self, id: int) -> Module | None: ...
+
+    @abstractmethod
+    async def create_module(self, module: Module) -> Module: ...
+
+    @abstractmethod
+    async def update_module(self, module: Module) -> Module: ...
+
+    @abstractmethod
+    async def delete_module(self, module: Module) -> None: ...
+
+
+class ILessonsRepository(ABC):
+    @abstractmethod
+    async def get_by_id(self, id: int) -> Lesson | None: ...
+
+    @abstractmethod
+    async def create_lesson(self, lesson: Lesson) -> Lesson: ...
+
+    @abstractmethod
+    async def update_lesson(self, lesson: Lesson) -> Lesson: ...
+
+    @abstractmethod
+    async def delete_lesson(self, lesson: Lesson) -> None: ...
+
+
+class IMaterialsRepository(ABC):
+    @abstractmethod
+    async def get_by_id(self, id: int) -> Material | None: ...
+
+    @abstractmethod
+    async def create_material(self, material: Material) -> Material: ...
+
+    @abstractmethod
+    async def delete_material(self, material: Material) -> None: ...
+
+
+class IHomeworkRepository(ABC):
+    @abstractmethod
+    async def get_by_lesson_id(self, lesson_id: int) -> Homework | None: ...
+
+    @abstractmethod
+    async def create_homework(self, homework: Homework) -> Homework: ...
+
+    @abstractmethod
+    async def update_homework(self, homework: Homework) -> Homework: ...
+
+    @abstractmethod
+    async def delete_homework(self, homework: Homework) -> None: ...
