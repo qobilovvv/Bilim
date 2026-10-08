@@ -2,7 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.staticfiles import StaticFiles
+from src.api.media_handlers import router as media_router
 
 from src.infrastructure.config import settings
 from src.api.routes import api_router
@@ -41,7 +41,7 @@ def create_app() -> FastAPI:
 
     # 2. Attach Routers
     app.include_router(api_router, prefix="/api/v1")
-    app.mount("/media", StaticFiles(directory="media"), name="media")
+    app.include_router(media_router)
 
     @app.get("/healthz", tags=["health"])
     async def healthz():

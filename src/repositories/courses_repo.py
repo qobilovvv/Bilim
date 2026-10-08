@@ -1,6 +1,8 @@
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from src.models.category import Category
+from src.models.user import User
 from src.models.course import Course
 from src.models.module import Module
 from src.models.lesson import Lesson
@@ -39,6 +41,14 @@ class CoursesRepository(ICoursesRepository):
         result = await self.db.execute(stmt)
         return result.unique().scalar_one_or_none()
 
+    async def get_public_by_id(self, id: int) -> Course | None:
+        stmt = (select(Course).join(Course.category).join(Course.teacher)
+                .where(Course.id == id, Course.is_active.is_(True), Category.is_active.is_(True),
+                       User.is_active.is_(True), User.is_blocked.is_(False))
+                .options(selectinload(Course.category), selectinload(Course.teacher),
+                         selectinload(Course.modules).selectinload(Module.lessons)))
+        return (await self.db.execute(stmt)).scalar_one_or_none()
+
     async def list_courses(
         self,
         category_id: int | None,
@@ -62,7 +72,9 @@ class CoursesRepository(ICoursesRepository):
         if teacher_id is not None:
             conditions.append(Course.teacher_id == teacher_id)
         if active_only:
-            conditions.append(Course.is_active == True)
+            conditions.extend([Course.is_active.is_(True),
+                               Course.category.has(Category.is_active.is_(True)),
+                               Course.teacher.has((User.is_active.is_(True)) & (User.is_blocked.is_(False)))])
         if search:
             conditions.append(Course.name.ilike(f"%{search}%"))
 

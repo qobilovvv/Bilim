@@ -85,7 +85,8 @@ class HomeworkService:
         check_course_permission(lesson.module.course, current_user)
         return lesson
 
-    async def get_homework(self, lesson_id: int) -> Homework | None:
+    async def get_homework(self, lesson_id: int, current_user: User) -> Homework | None:
+        await self._get_owned_lesson(lesson_id, current_user)
         return await self.repo.get_by_lesson_id(lesson_id)
 
     async def upsert_homework(self, lesson_id: int, data: HomeworkUpsertRequest, current_user: User) -> Homework | None:

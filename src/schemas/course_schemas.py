@@ -243,3 +243,24 @@ class CourseResponse(BaseModel):
     updated_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class LessonCatalogResponse(BaseModel):
+    id: int
+    name: str
+    order_index: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ModuleCatalogResponse(BaseModel):
+    id: int
+    name: str
+    order_index: int
+    lessons: list[LessonCatalogResponse] = []
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CourseCatalogResponse(CourseListItemResponse):
+    preview_video: str | None = None
+    about_teacher: str | None = None
+    modules: list[ModuleCatalogResponse] = []

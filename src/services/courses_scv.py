@@ -51,6 +51,17 @@ class CoursesService:
     ) -> tuple[list[Course], int]:
         return await self.repo.list_courses(category_id, type_filter, teacher_id, search, active_only, offset, limit)
 
+    async def get_public_course(self, id: int) -> Course:
+        course = await self.repo.get_public_by_id(id)
+        if not course:
+            raise HTTPException(404, "Course not found")
+        return course
+
+    async def get_owned_course(self, id: int, current_user: User) -> Course:
+        course = await self.get_course(id)
+        check_course_permission(course, current_user)
+        return course
+
     async def get_course(self, id: int) -> Course:
         course = await self.repo.get_by_id(id)
         if not course:

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from src.models.user import User
 from src.schemas.course_schemas import (
+    CourseCatalogResponse,
     CourseCreateRequest,
     CourseUpdateRequest,
     CourseResponse,
@@ -33,12 +34,11 @@ async def list_courses(
     type: str | None = Query(None),
     teacher_id: int | None = Query(None),
     search: str | None = Query(None),
-    active_only: bool = Query(True),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     service: CoursesService = Depends(get_courses_service),
 ):
-    items, total = await service.list_courses(category_id, type, teacher_id, search, active_only, limit, offset)
+    items, total = await service.list_courses(category_id, type, teacher_id, search, True, limit, offset)
     return CourseListResponse(
         total=total,
         limit=limit,
@@ -77,9 +77,17 @@ async def list_my_courses(
         result=[CourseListItemResponse.model_validate(c) for c in items],
     )
 
-@router.get("/courses/{id}", response_model=CourseResponse)
+@router.get("/courses/{id}", response_model=CourseCatalogResponse)
 async def get_course(id: int, service: CoursesService = Depends(get_courses_service)):
-    return await service.get_course(id)
+    return await service.get_public_course(id)
+
+@router.get("/courses/{id}/content", response_model=CourseResponse)
+async def get_course_content(
+    id: int,
+    current_user: User = Depends(get_current_teacher_or_admin),
+    service: CoursesService = Depends(get_courses_service),
+):
+    return await service.get_owned_course(id, current_user)
 
 @router.put("/courses/{id}", response_model=CourseResponse)
 async def update_course(
@@ -198,9 +206,10 @@ async def delete_material(
 @router.get("/lessons/{lesson_id}/homework", response_model=HomeworkResponse | None)
 async def get_homework(
     lesson_id: int,
+    current_user: User = Depends(get_current_teacher_or_admin),
     service: HomeworkService = Depends(get_homework_service),
 ):
-    return await service.get_homework(lesson_id)
+    return await service.get_homework(lesson_id, current_user)
 
 @router.put("/lessons/{lesson_id}/homework", response_model=HomeworkResponse | None)
 async def upsert_homework(
