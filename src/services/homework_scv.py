@@ -79,7 +79,7 @@ class HomeworkService:
         self.lessons_repo = lessons_repo
 
     async def _get_owned_lesson(self, lesson_id: int, current_user: User):
-        lesson = await self.lessons_repo.get_by_id(lesson_id)
+        lesson = await self.lessons_repo.get_reference(lesson_id)
         if not lesson:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lesson not found")
         check_course_permission(lesson.module.course, current_user)

@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import select
+from sqlalchemy import select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.infrastructure.database import get_db_session
@@ -58,9 +58,7 @@ async def get_media(
             select(Course.teacher_id).join(Module).join(Lesson).join(Homework).join(FileHomework)
             .where(FileHomework.example_file == relative_path),
         ]
-        owners = set()
-        for query in queries:
-            owners.update((await db.execute(query)).scalars())
+        owners = set((await db.execute(union_all(*queries))).scalars())
         if not owners or (user.type != UserType.ADMIN and user.id not in owners):
             raise HTTPException(404, "File not found")
     if not path.is_file():

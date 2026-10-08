@@ -13,12 +13,12 @@ class CategoriesRepository(ICategoriesRepository):
 
     async def get_by_id(self, id: int) -> Category | None:
         stmt = select(Category).options(joinedload(Category.subcategories)).where(Category.id == id)
-        result = await self.db.execute(stmt)
+        result = await self.db.execute(stmt.execution_options(populate_existing=True))
         return result.unique().scalar_one_or_none()
 
     async def get_by_path(self, path: str) -> Category | None:
         stmt = select(Category).options(joinedload(Category.subcategories)).where(Category.path == path)
-        result = await self.db.execute(stmt)
+        result = await self.db.execute(stmt.execution_options(populate_existing=True))
         return result.unique().scalar_one_or_none()
 
 
@@ -30,14 +30,13 @@ class CategoriesRepository(ICategoriesRepository):
         if active_only:
             stmt = stmt.options(joinedload(Category.subcategories.and_(Category.is_active.is_(True))))
         stmt = stmt.order_by(Category.id).execution_options(populate_existing=True)
-        result = await self.db.execute(stmt)
+        result = await self.db.execute(stmt.execution_options(populate_existing=True))
         # unique() is required when joinedload is used in async queries to avoid duplicates
         return list(result.unique().scalars().all())
 
     async def create_category(self, category: Category) -> Category:
         self.db.add(category)
         await self.db.flush()
-        await self.db.refresh(category)
         res = await self.get_by_id(category.id)
         assert res is not None
         return res
@@ -45,7 +44,6 @@ class CategoriesRepository(ICategoriesRepository):
     async def update_category(self, category: Category) -> Category:
         self.db.add(category)
         await self.db.flush()
-        await self.db.refresh(category)
         res = await self.get_by_id(category.id)
         assert res is not None
         return res

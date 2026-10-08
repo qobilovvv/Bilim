@@ -193,3 +193,49 @@ async def test_public_catalog_hides_drafts_and_media_requires_ownership(client, 
     assert "video" not in public.json()["modules"][0]["lessons"][0]
     assert (await client.delete(f"/api/v1/courses/{course_id}", headers=headers)).status_code == 204
     assert not list(tmp_path.rglob("*.mp4"))
+
+
+async def test_permission_lookup_uses_one_query(client, db_factory):
+    from sqlalchemy import event
+    from src.repositories.courses_repo import CoursesRepository
+    login, _ = await create_teacher(client)
+    course_id, _, _ = await create_course(client, db_factory, login["tokens"])
+    queries = []
+    engine = db_factory.kw["bind"]
+    def record(conn, cursor, statement, parameters, context, executemany):
+        queries.append(statement)
+    event.listen(engine.sync_engine, "before_cursor_execute", record)
+    try:
+        async with db_factory() as db:
+            repo = CoursesRepository(db)
+            assert (await repo.get_reference(course_id)).id == course_id
+            assert len(queries) == 1
+            queries.clear()
+            assert (await repo.get_by_id(course_id)).id == course_id
+            assert len(queries) > 1
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", record)
+
+
+async def test_failed_file_cleanup_is_persisted_and_retryable(client, db_factory, tmp_path, monkeypatch):
+    from src.infrastructure.config import settings
+    from src.models.media_cleanup import MediaCleanup
+    from src.services import file_storage
+    monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path))
+    login, _ = await create_teacher(client)
+    course_id, lesson_id, headers = await create_course(client, db_factory, login["tokens"])
+    upload = await client.put(f"/api/v1/lessons/{lesson_id}/video", headers=headers,
+                             files={"video": ("lesson.mp4", b"video", "video/mp4")})
+    path = upload.json()["video"]
+    original = file_storage.delete_media_file
+    def fail_delete(path):
+        raise OSError("temporary failure")
+    monkeypatch.setattr(file_storage, "delete_media_file", fail_delete)
+    assert (await client.delete(f"/api/v1/courses/{course_id}", headers=headers)).status_code == 204
+    async with db_factory() as db:
+        assert (await db.execute(select(MediaCleanup.path))).scalar_one() == path
+    monkeypatch.setattr(file_storage, "delete_media_file", original)
+    async with db_factory() as db:
+        await file_storage.cleanup_pending_files(db)
+        assert not (await db.execute(select(MediaCleanup.path))).first()
+    assert not file_storage.media_path(path).exists()

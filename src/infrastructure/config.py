@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     MEDIA_ROOT: str = "media"
 
     # Database
+    DB_POOL_SIZE: int = Field(default=5, ge=1, le=100)
+    DB_MAX_OVERFLOW: int = Field(default=5, ge=0, le=100)
     DATABASE_URL: str
 
     # Auth / JWT

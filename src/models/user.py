@@ -1,4 +1,4 @@
-from sqlalchemy import CheckConstraint, Column, Integer, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Index, CheckConstraint, Column, Integer, String, Boolean, DateTime, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from src.infrastructure.database import Base
@@ -13,6 +13,8 @@ class User(Base):
     __tablename__ = "users"
 
     __table_args__ = (
+        Index('ix_users_type_created', 'type', 'created_at', 'id'),
+
         CheckConstraint("type IN ('admin', 'author', 'user', 'seller')", name='ck_users_role'),
         CheckConstraint('length(btrim(first_name)) BETWEEN 1 AND 200', name='ck_users_first_name'),
         CheckConstraint('auth_version >= 0', name='ck_users_auth_version'),

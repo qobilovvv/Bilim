@@ -10,6 +10,10 @@ class ModulesRepository(IModulesRepository):
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def get_reference(self, id: int) -> Module | None:
+        stmt = select(Module).options(joinedload(Module.course)).where(Module.id == id)
+        return (await self.db.execute(stmt)).unique().scalar_one_or_none()
+
     async def get_by_id(self, id: int) -> Module | None:
         stmt = (
             select(Module)
@@ -26,13 +30,12 @@ class ModulesRepository(IModulesRepository):
             )
             .where(Module.id == id)
         )
-        result = await self.db.execute(stmt)
+        result = await self.db.execute(stmt.execution_options(populate_existing=True))
         return result.unique().scalar_one_or_none()
 
     async def create_module(self, module: Module) -> Module:
         self.db.add(module)
         await self.db.flush()
-        await self.db.refresh(module)
         res = await self.get_by_id(module.id)
         assert res is not None
         return res
@@ -40,7 +43,6 @@ class ModulesRepository(IModulesRepository):
     async def update_module(self, module: Module) -> Module:
         self.db.add(module)
         await self.db.flush()
-        await self.db.refresh(module)
         res = await self.get_by_id(module.id)
         assert res is not None
         return res

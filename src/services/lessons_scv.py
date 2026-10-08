@@ -18,7 +18,7 @@ class LessonsService:
         self.modules_repo = modules_repo
 
     async def create_lesson(self, module_id: int, data: LessonCreateRequest, current_user: User) -> Lesson:
-        module = await self.modules_repo.get_by_id(module_id)
+        module = await self.modules_repo.get_reference(module_id)
         if not module:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Module not found")
         check_course_permission(module.course, current_user)
@@ -31,8 +31,8 @@ class LessonsService:
         )
         return await self.repo.create_lesson(lesson)
 
-    async def _get_owned_lesson(self, lesson_id: int, current_user: User) -> Lesson:
-        lesson = await self.repo.get_by_id(lesson_id)
+    async def _get_owned_lesson(self, lesson_id: int, current_user: User, full: bool = False) -> Lesson:
+        lesson = await (self.repo.get_by_id(lesson_id) if full else self.repo.get_reference(lesson_id))
         if not lesson:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lesson not found")
         check_course_permission(lesson.module.course, current_user)
@@ -56,7 +56,7 @@ class LessonsService:
         return await self.repo.update_lesson(lesson)
 
     async def delete_lesson(self, lesson_id: int, current_user: User) -> None:
-        lesson = await self._get_owned_lesson(lesson_id, current_user)
+        lesson = await self._get_owned_lesson(lesson_id, current_user, full=True)
         await queue_media_cleanup(self.repo.db, lesson_media_paths(lesson))
         await self.repo.delete_lesson(lesson)
 

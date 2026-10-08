@@ -28,7 +28,7 @@ async def test_course_content_requires_ownership():
 
 
 async def test_homework_read_requires_ownership():
-    service = HomeworkService(None, SimpleNamespace(get_by_id=AsyncMock(return_value=SimpleNamespace(
+    service = HomeworkService(None, SimpleNamespace(get_reference=AsyncMock(return_value=SimpleNamespace(
         module=SimpleNamespace(course=SimpleNamespace(teacher_id=1))))))
     with pytest.raises(HTTPException) as exc:
         await service.get_homework(1, SimpleNamespace(id=2, type="seller"))

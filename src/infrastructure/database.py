@@ -19,10 +19,10 @@ engine = create_async_engine(
     echo=False,  # Set to True to log all SQL queries during development
     future=True,
     pool_pre_ping=True,
-    pool_size=20,  # Number of connections to keep in the pool
-    max_overflow=10,  # Additional connections beyond pool_size
+    pool_size=settings.DB_POOL_SIZE,  # Number of connections to keep in the pool
+    max_overflow=settings.DB_MAX_OVERFLOW,  # Additional connections beyond pool_size
     pool_recycle=3600,  # Recycle connections after 1 hour
-    connect_args={"timeout": 10}  # Connection timeout
+    connect_args={"timeout": 10, "command_timeout": 30}  # Connection timeout
 )
 
 # 2. Create the Async Session Maker

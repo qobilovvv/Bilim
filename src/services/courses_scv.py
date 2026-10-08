@@ -69,7 +69,9 @@ class CoursesService:
         return course
 
     async def update_course(self, id: int, data: CourseUpdateRequest, current_user: User) -> Course:
-        course = await self.get_course(id)
+        course = await self.repo.get_reference(id)
+        if not course:
+            raise HTTPException(404, "Course not found")
         check_course_permission(course, current_user)
 
         if data.category_id is not None:
@@ -109,7 +111,9 @@ class CoursesService:
         preview_image: UploadFile | None,
         preview_video: UploadFile | None,
     ) -> Course:
-        course = await self.get_course(id)
+        course = await self.repo.get_reference(id)
+        if not course:
+            raise HTTPException(404, "Course not found")
         check_course_permission(course, current_user)
 
         if preview_image:

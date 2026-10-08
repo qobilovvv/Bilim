@@ -15,7 +15,7 @@ class ModulesService:
         self.courses_repo = courses_repo
 
     async def create_module(self, course_id: int, data: ModuleCreateRequest, current_user: User) -> Module:
-        course = await self.courses_repo.get_by_id(course_id)
+        course = await self.courses_repo.get_reference(course_id)
         if not course:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
         check_course_permission(course, current_user)
@@ -28,8 +28,8 @@ class ModulesService:
         )
         return await self.repo.create_module(module)
 
-    async def _get_owned_module(self, module_id: int, current_user: User) -> Module:
-        module = await self.repo.get_by_id(module_id)
+    async def _get_owned_module(self, module_id: int, current_user: User, full: bool = False) -> Module:
+        module = await (self.repo.get_by_id(module_id) if full else self.repo.get_reference(module_id))
         if not module:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Module not found")
         check_course_permission(module.course, current_user)
@@ -48,7 +48,7 @@ class ModulesService:
         return await self.repo.update_module(module)
 
     async def delete_module(self, module_id: int, current_user: User) -> None:
-        module = await self._get_owned_module(module_id, current_user)
+        module = await self._get_owned_module(module_id, current_user, full=True)
         await queue_media_cleanup(self.repo.db, module_media_paths(module))
         await self.repo.delete_module(module)
 

@@ -10,6 +10,10 @@ class LessonsRepository(ILessonsRepository):
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def get_reference(self, id: int) -> Lesson | None:
+        stmt = select(Lesson).options(joinedload(Lesson.module).joinedload(Module.course)).where(Lesson.id == id)
+        return (await self.db.execute(stmt)).unique().scalar_one_or_none()
+
     async def get_by_id(self, id: int) -> Lesson | None:
         stmt = (
             select(Lesson)
@@ -25,13 +29,12 @@ class LessonsRepository(ILessonsRepository):
             )
             .where(Lesson.id == id)
         )
-        result = await self.db.execute(stmt)
+        result = await self.db.execute(stmt.execution_options(populate_existing=True))
         return result.unique().scalar_one_or_none()
 
     async def create_lesson(self, lesson: Lesson) -> Lesson:
         self.db.add(lesson)
         await self.db.flush()
-        await self.db.refresh(lesson)
         res = await self.get_by_id(lesson.id)
         assert res is not None
         return res
@@ -39,7 +42,6 @@ class LessonsRepository(ILessonsRepository):
     async def update_lesson(self, lesson: Lesson) -> Lesson:
         self.db.add(lesson)
         await self.db.flush()
-        await self.db.refresh(lesson)
         res = await self.get_by_id(lesson.id)
         assert res is not None
         return res

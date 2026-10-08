@@ -37,9 +37,13 @@ class CoursesRepository(ICoursesRepository):
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def get_reference(self, id: int) -> Course | None:
+        stmt = select(Course).where(Course.id == id)
+        return (await self.db.execute(stmt)).unique().scalar_one_or_none()
+
     async def get_by_id(self, id: int) -> Course | None:
         stmt = select(Course).options(*_full_tree_options()).where(Course.id == id)
-        result = await self.db.execute(stmt)
+        result = await self.db.execute(stmt.execution_options(populate_existing=True))
         return result.unique().scalar_one_or_none()
 
     async def get_public_by_id(self, id: int) -> Course | None:
@@ -82,14 +86,13 @@ class CoursesRepository(ICoursesRepository):
 
         stmt = stmt.order_by(Course.created_at.desc(), Course.id.desc()).offset(offset).limit(limit)
 
-        result = await self.db.execute(stmt)
+        result = await self.db.execute(stmt.execution_options(populate_existing=True))
         total = (await self.db.execute(count_stmt)).scalar_one()
         return list(result.unique().scalars().all()), total
 
     async def create_course(self, course: Course) -> Course:
         self.db.add(course)
         await self.db.flush()
-        await self.db.refresh(course)
         res = await self.get_by_id(course.id)
         assert res is not None
         return res
@@ -97,7 +100,6 @@ class CoursesRepository(ICoursesRepository):
     async def update_course(self, course: Course) -> Course:
         self.db.add(course)
         await self.db.flush()
-        await self.db.refresh(course)
         res = await self.get_by_id(course.id)
         assert res is not None
         return res
