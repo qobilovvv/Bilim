@@ -10,7 +10,7 @@ class PasswordResetRepository(IPasswordResetRepository):
 
     async def create_reset_code(self, reset_code: PasswordResetCode) -> PasswordResetCode:
         self.db.add(reset_code)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(reset_code)
         return reset_code
 
@@ -48,6 +48,6 @@ class PasswordResetRepository(IPasswordResetRepository):
 
     async def update_reset_code(self, reset_code: PasswordResetCode) -> PasswordResetCode:
         self.db.add(reset_code)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(reset_code)
         return reset_code

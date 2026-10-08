@@ -78,7 +78,7 @@ class CoursesRepository(ICoursesRepository):
 
     async def create_course(self, course: Course) -> Course:
         self.db.add(course)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(course)
         res = await self.get_by_id(course.id)
         assert res is not None
@@ -86,7 +86,7 @@ class CoursesRepository(ICoursesRepository):
 
     async def update_course(self, course: Course) -> Course:
         self.db.add(course)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(course)
         res = await self.get_by_id(course.id)
         assert res is not None
@@ -94,4 +94,4 @@ class CoursesRepository(ICoursesRepository):
 
     async def delete_course(self, course: Course) -> None:
         await self.db.delete(course)
-        await self.db.commit()
+        await self.db.flush()

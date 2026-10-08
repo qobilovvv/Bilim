@@ -25,7 +25,7 @@ class HomeworkRepository(IHomeworkRepository):
 
     async def create_homework(self, homework: Homework) -> Homework:
         self.db.add(homework)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(homework)
         res = await self.get_by_lesson_id(homework.lesson_id)
         assert res is not None
@@ -33,7 +33,7 @@ class HomeworkRepository(IHomeworkRepository):
 
     async def update_homework(self, homework: Homework) -> Homework:
         self.db.add(homework)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(homework)
         res = await self.get_by_lesson_id(homework.lesson_id)
         assert res is not None
@@ -41,4 +41,4 @@ class HomeworkRepository(IHomeworkRepository):
 
     async def delete_homework(self, homework: Homework) -> None:
         await self.db.delete(homework)
-        await self.db.commit()
+        await self.db.flush()

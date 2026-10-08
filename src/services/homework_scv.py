@@ -94,24 +94,22 @@ class HomeworkService:
         if data.type not in HomeworkType.ALL:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid type. Allowed: {HomeworkType.ALL}")
 
+        # Build and validate before removing the previous assignment.
+        homework = None
+        if data.type != HomeworkType.NONE:
+            homework = Homework(lesson_id=lesson_id, type=data.type, name=data.name, description=data.description)
+            if data.type == HomeworkType.TEST:
+                homework.test_detail = _build_test_detail(data)
+            elif data.type == HomeworkType.TEXT:
+                homework.text_detail = _build_text_detail(data)
+            elif data.type == HomeworkType.FILE:
+                homework.file_detail = _build_file_detail(data)
+
         existing = await self.repo.get_by_lesson_id(lesson_id)
         if existing:
-            if existing.file_detail and existing.file_detail.example_file:
-                delete_media_file(existing.file_detail.example_file)
             await self.repo.delete_homework(existing)
-
-        if data.type == HomeworkType.NONE:
+        if homework is None:
             return None
-
-        homework = Homework(lesson_id=lesson_id, type=data.type, name=data.name, description=data.description)
-
-        if data.type == HomeworkType.TEST:
-            homework.test_detail = _build_test_detail(data)
-        elif data.type == HomeworkType.TEXT:
-            homework.text_detail = _build_text_detail(data)
-        elif data.type == HomeworkType.FILE:
-            homework.file_detail = _build_file_detail(data)
-
         return await self.repo.create_homework(homework)
 
     async def upload_example_file(self, lesson_id: int, file: UploadFile, current_user: User) -> Homework:
@@ -136,5 +134,5 @@ class HomeworkService:
             delete_media_file(homework.file_detail.example_file)
         await self.repo.delete_homework(homework)
 
-async def get_homework_service(db: AsyncSession = Depends(get_db_session)) -> HomeworkService:
+async def get_homework_service(db: AsyncSession = Depends(get_db_session, scope="function")) -> HomeworkService:
     return HomeworkService(HomeworkRepository(db), LessonsRepository(db))

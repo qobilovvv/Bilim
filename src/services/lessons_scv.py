@@ -61,5 +61,5 @@ class LessonsService:
         delete_media_file(lesson.video)
         await self.repo.delete_lesson(lesson)
 
-async def get_lessons_service(db: AsyncSession = Depends(get_db_session)) -> LessonsService:
+async def get_lessons_service(db: AsyncSession = Depends(get_db_session, scope="function")) -> LessonsService:
     return LessonsService(LessonsRepository(db), ModulesRepository(db))

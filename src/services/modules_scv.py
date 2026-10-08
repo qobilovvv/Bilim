@@ -50,5 +50,5 @@ class ModulesService:
         module = await self._get_owned_module(module_id, current_user)
         await self.repo.delete_module(module)
 
-async def get_modules_service(db: AsyncSession = Depends(get_db_session)) -> ModulesService:
+async def get_modules_service(db: AsyncSession = Depends(get_db_session, scope="function")) -> ModulesService:
     return ModulesService(ModulesRepository(db), CoursesRepository(db))

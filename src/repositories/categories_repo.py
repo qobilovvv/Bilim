@@ -31,7 +31,7 @@ class CategoriesRepository(ICategoriesRepository):
 
     async def create_category(self, category: Category) -> Category:
         self.db.add(category)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(category)
         res = await self.get_by_id(category.id)
         assert res is not None
@@ -39,7 +39,7 @@ class CategoriesRepository(ICategoriesRepository):
 
     async def update_category(self, category: Category) -> Category:
         self.db.add(category)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(category)
         res = await self.get_by_id(category.id)
         assert res is not None
@@ -47,4 +47,4 @@ class CategoriesRepository(ICategoriesRepository):
 
     async def delete_category(self, category: Category) -> None:
         await self.db.delete(category)
-        await self.db.commit()
+        await self.db.flush()

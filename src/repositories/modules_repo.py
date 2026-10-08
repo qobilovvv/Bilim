@@ -31,7 +31,7 @@ class ModulesRepository(IModulesRepository):
 
     async def create_module(self, module: Module) -> Module:
         self.db.add(module)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(module)
         res = await self.get_by_id(module.id)
         assert res is not None
@@ -39,7 +39,7 @@ class ModulesRepository(IModulesRepository):
 
     async def update_module(self, module: Module) -> Module:
         self.db.add(module)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(module)
         res = await self.get_by_id(module.id)
         assert res is not None
@@ -47,4 +47,4 @@ class ModulesRepository(IModulesRepository):
 
     async def delete_module(self, module: Module) -> None:
         await self.db.delete(module)
-        await self.db.commit()
+        await self.db.flush()

@@ -112,6 +112,6 @@ class CategoriesService:
             )
         await self.repo.delete_category(category)
 
-async def get_categories_service(db: AsyncSession = Depends(get_db_session)) -> CategoriesService:
+async def get_categories_service(db: AsyncSession = Depends(get_db_session, scope="function")) -> CategoriesService:
     repo = CategoriesRepository(db)
     return CategoriesService(repo)

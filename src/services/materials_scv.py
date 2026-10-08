@@ -36,5 +36,5 @@ class MaterialsService:
         delete_media_file(material.file)
         await self.repo.delete_material(material)
 
-async def get_materials_service(db: AsyncSession = Depends(get_db_session)) -> MaterialsService:
+async def get_materials_service(db: AsyncSession = Depends(get_db_session, scope="function")) -> MaterialsService:
     return MaterialsService(MaterialsRepository(db), LessonsRepository(db))

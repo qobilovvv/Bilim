@@ -30,7 +30,7 @@ class LessonsRepository(ILessonsRepository):
 
     async def create_lesson(self, lesson: Lesson) -> Lesson:
         self.db.add(lesson)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(lesson)
         res = await self.get_by_id(lesson.id)
         assert res is not None
@@ -38,7 +38,7 @@ class LessonsRepository(ILessonsRepository):
 
     async def update_lesson(self, lesson: Lesson) -> Lesson:
         self.db.add(lesson)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(lesson)
         res = await self.get_by_id(lesson.id)
         assert res is not None
@@ -46,4 +46,4 @@ class LessonsRepository(ILessonsRepository):
 
     async def delete_lesson(self, lesson: Lesson) -> None:
         await self.db.delete(lesson)
-        await self.db.commit()
+        await self.db.flush()

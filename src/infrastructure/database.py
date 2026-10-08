@@ -1,4 +1,6 @@
 from typing import AsyncGenerator
+from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -46,6 +48,10 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionFactory() as session:
         try:
             yield session
+            await session.commit()
+        except IntegrityError as exc:
+            await session.rollback()
+            raise HTTPException(status_code=409, detail="The change conflicts with an existing record or reference") from exc
         except Exception:
             await session.rollback()
             raise

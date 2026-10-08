@@ -122,5 +122,5 @@ class CoursesService:
         delete_media_file(course.preview_video)
         await self.repo.delete_course(course)
 
-async def get_courses_service(db: AsyncSession = Depends(get_db_session)) -> CoursesService:
+async def get_courses_service(db: AsyncSession = Depends(get_db_session, scope="function")) -> CoursesService:
     return CoursesService(CoursesRepository(db), CategoriesRepository(db), UsersRepository(db))

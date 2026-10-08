@@ -97,7 +97,7 @@ class PasswordResetService:
         await self.reset_repo.update_reset_code(reset_code)
 
 async def get_password_reset_service(
-    db: AsyncSession = Depends(get_db_session)
+    db: AsyncSession = Depends(get_db_session, scope="function")
 ) -> PasswordResetService:
     reset_repo = PasswordResetRepository(db)
     users_repo = UsersRepository(db)

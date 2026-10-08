@@ -34,7 +34,7 @@ class UsersRepository(IUsersRepository):
 
     async def create_user(self, user: User) -> User:
         self.db.add(user)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(user)
         res = await self.get_by_id(user.id)
         assert res is not None
@@ -42,7 +42,7 @@ class UsersRepository(IUsersRepository):
 
     async def update_user(self, user: User) -> User:
         self.db.add(user)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(user)
         res = await self.get_by_id(user.id)
         assert res is not None
@@ -50,7 +50,7 @@ class UsersRepository(IUsersRepository):
 
     async def delete_user(self, user: User) -> None:
         await self.db.delete(user)
-        await self.db.commit()
+        await self.db.flush()
 
     async def list_users(
         self,
