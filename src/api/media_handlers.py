@@ -15,6 +15,7 @@ from src.models.module import Module
 from src.models.user import User, UserType
 from src.security.dependencies import get_current_user
 from src.services.file_storage import media_path
+from src.repositories.course_visibility import public_course_conditions
 
 router = APIRouter(tags=["Media"])
 optional_bearer = HTTPBearer(auto_error=False)
@@ -45,7 +46,7 @@ async def get_media(
     }:
         public = bool((await db.execute(select(Course.id).where(
             (Course.preview_image == relative_path) | (Course.preview_video == relative_path),
-            Course.is_active.is_(True),
+            *public_course_conditions(),
         ))).first())
     if not public:
         if user is None:

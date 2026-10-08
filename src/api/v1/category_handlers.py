@@ -66,11 +66,10 @@ def serialize_category(cat: Category, lang: str) -> dict:
 
 @router.get("", response_model=list[CategoryResponse])
 async def list_categories(
-    active_only: bool = Query(True, description="Filter only active categories"),
     lang: str = Depends(get_accept_language),
     service: CategoriesService = Depends(get_categories_service)
 ):
-    categories = await service.list_categories(active_only=active_only)
+    categories = await service.list_categories(active_only=True)
     return [serialize_category(cat, lang) for cat in categories]
 
 @router.post("", response_model=CategoryResponse, status_code=status.HTTP_201_CREATED)
@@ -101,3 +100,10 @@ async def delete_category(
     service: CategoriesService = Depends(get_categories_service)
 ):
     await service.delete_category(id)
+
+
+@router.get("/all", response_model=list[CategoryResponse])
+async def list_all_categories(current_admin: User = Depends(get_current_admin),
+                              lang: str = Depends(get_accept_language),
+                              service: CategoriesService = Depends(get_categories_service)):
+    return [serialize_category(category, lang) for category in await service.list_categories(False)]

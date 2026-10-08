@@ -144,3 +144,52 @@ async def test_rate_limits_persist_rejected_attempts(db_factory):
         with pytest.raises(HTTPException) as error:
             await rate_limits.check_rate_limit("test", "identity", 2, 60)
         assert error.value.status_code == 429
+
+
+async def test_category_reparenting_and_active_child_visibility(db_factory):
+    from fastapi import HTTPException
+    from src.models.category import Category
+    from src.repositories.categories_repo import CategoriesRepository
+    from src.schemas.category_schemas import CategoryUpdateRequest
+    from src.services.categories_scv import CategoriesService
+    async with db_factory() as db:
+        parent = Category(name={"uz": "Parent"}, path="/parent", level=1, is_active=True)
+        other = Category(name={"uz": "Other"}, path="/other", level=1, is_active=True)
+        db.add_all([parent, other])
+        await db.flush()
+        child = Category(name={"uz": "Hidden"}, path="/hidden", parent_id=parent.id, level=2, is_active=False)
+        db.add(child)
+        await db.commit()
+        parent_id, other_id = parent.id, other.id
+    async with db_factory() as db:
+        repo = CategoriesRepository(db)
+        roots = await repo.list_categories(True)
+        assert next(root for root in roots if root.id == parent_id).subcategories == []
+    async with db_factory() as db:
+        service = CategoriesService(CategoriesRepository(db))
+        with pytest.raises(HTTPException) as exc:
+            await service.update_category(parent_id, CategoryUpdateRequest(parent_id=other_id))
+        assert exc.value.status_code == 400
+        await db.rollback()
+
+
+async def test_public_catalog_hides_drafts_and_media_requires_ownership(client, db_factory, tmp_path, monkeypatch):
+    from src.infrastructure.config import settings
+    monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path))
+    login, _ = await create_teacher(client)
+    course_id, lesson_id, headers = await create_course(client, db_factory, login["tokens"])
+    assert (await client.get(f"/api/v1/courses/{course_id}")).status_code == 404
+    assert (await client.get("/api/v1/courses?active_only=false")).json()["total"] == 0
+    video = await client.put(f"/api/v1/lessons/{lesson_id}/video", headers=headers,
+                            files={"video": ("lesson.mp4", b"test-video", "video/mp4")})
+    assert video.status_code == 200, video.text
+    media_url = "/media/" + video.json()["video"]
+    assert (await client.get(media_url)).status_code == 401
+    assert (await client.get(media_url, headers=headers)).content == b"test-video"
+    published = await client.put(f"/api/v1/courses/{course_id}", headers=headers, json={"is_active": True})
+    assert published.status_code == 200, published.text
+    public = await client.get(f"/api/v1/courses/{course_id}")
+    assert public.status_code == 200, public.text
+    assert "video" not in public.json()["modules"][0]["lessons"][0]
+    assert (await client.delete(f"/api/v1/courses/{course_id}", headers=headers)).status_code == 204
+    assert not list(tmp_path.rglob("*.mp4"))

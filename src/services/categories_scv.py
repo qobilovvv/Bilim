@@ -10,6 +10,7 @@ class CategoriesService:
         self.repo = repo
 
     async def create_category(self, data: CategoryCreateRequest) -> Category:
+        await self.repo.lock_tree()
         # Normalize path to ensure it starts with / and is clean
         clean_path = "/" + data.path.strip("/")
         
@@ -29,7 +30,7 @@ class CategoriesService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Parent category not found"
                 )
-            if parent.level >= 2:
+            if parent.parent_id is not None:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Cannot nest categories below level 2 (max depth exceeded)"
@@ -49,6 +50,7 @@ class CategoriesService:
         return await self.repo.list_categories(active_only)
 
     async def update_category(self, id: int, data: CategoryUpdateRequest) -> Category:
+        await self.repo.lock_tree()
         category = await self.repo.get_by_id(id)
         if not category:
             raise HTTPException(
@@ -83,11 +85,13 @@ class CategoriesService:
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="Parent category not found"
                     )
-                if parent.level >= 2:
+                if parent.parent_id is not None:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="Cannot nest categories below level 2 (max depth exceeded)"
                     )
+                if category.subcategories:
+                    raise HTTPException(400, "A category with children must remain at the root level")
                 category.parent_id = data.parent_id
                 category.level = 2
         elif "parent_id" in data.model_fields_set and data.parent_id is None:
@@ -104,6 +108,7 @@ class CategoriesService:
         return await self.repo.update_category(category)
 
     async def delete_category(self, id: int) -> None:
+        await self.repo.lock_tree()
         category = await self.repo.get_by_id(id)
         if not category:
             raise HTTPException(

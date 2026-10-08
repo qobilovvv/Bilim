@@ -8,6 +8,7 @@ from src.models.module import Module
 from src.models.lesson import Lesson
 from src.models.homework import Homework, TestHomework, TestQuestion
 from src.repositories.interfaces import ICoursesRepository
+from src.repositories.course_visibility import public_course_conditions
 
 def _full_tree_options():
     return (
@@ -43,8 +44,7 @@ class CoursesRepository(ICoursesRepository):
 
     async def get_public_by_id(self, id: int) -> Course | None:
         stmt = (select(Course).join(Course.category).join(Course.teacher)
-                .where(Course.id == id, Course.is_active.is_(True), Category.is_active.is_(True),
-                       User.is_active.is_(True), User.is_blocked.is_(False))
+                .where(Course.id == id, *public_course_conditions())
                 .options(selectinload(Course.category), selectinload(Course.teacher),
                          selectinload(Course.modules).selectinload(Module.lessons)))
         return (await self.db.execute(stmt)).scalar_one_or_none()
@@ -72,9 +72,7 @@ class CoursesRepository(ICoursesRepository):
         if teacher_id is not None:
             conditions.append(Course.teacher_id == teacher_id)
         if active_only:
-            conditions.extend([Course.is_active.is_(True),
-                               Course.category.has(Category.is_active.is_(True)),
-                               Course.teacher.has((User.is_active.is_(True)) & (User.is_blocked.is_(False)))])
+            conditions.extend(public_course_conditions())
         if search:
             conditions.append(Course.name.ilike(f"%{search}%"))
 
@@ -82,7 +80,7 @@ class CoursesRepository(ICoursesRepository):
             stmt = stmt.where(cond)
             count_stmt = count_stmt.where(cond)
 
-        stmt = stmt.order_by(Course.created_at.desc()).offset(offset).limit(limit)
+        stmt = stmt.order_by(Course.created_at.desc(), Course.id.desc()).offset(offset).limit(limit)
 
         result = await self.db.execute(stmt)
         total = (await self.db.execute(count_stmt)).scalar_one()
