@@ -32,5 +32,7 @@ def upgrade():
 def downgrade():
     op.drop_table("auth_rate_limits")
     op.drop_table("auth_sessions")
+    op.execute("UPDATE password_reset_codes SET expires_at = now()")
+    op.alter_column("password_reset_codes", "code", type_=sa.String())
     op.drop_column("password_reset_codes", "attempts")
     op.drop_column("users", "auth_version")

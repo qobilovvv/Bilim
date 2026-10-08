@@ -37,10 +37,10 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     last_login = Column(DateTime(timezone=True), nullable=True)
 
-    type = Column(String, default=UserType.USER, nullable=False)
-    is_active = Column(Boolean, default=True)
-    is_blocked = Column(Boolean, default=False)
-    is_superuser = Column(Boolean, default=False)
+    type = Column(String, default=UserType.USER, nullable=False, server_default="user")
+    is_active = Column(Boolean, default=True, nullable=False, server_default="true")
+    is_blocked = Column(Boolean, default=False, nullable=False, server_default="false")
+    is_superuser = Column(Boolean, default=False, nullable=False, server_default="false")
 
     # One-to-one relationship with SellerProfile
     seller_profile = relationship(

@@ -239,3 +239,7 @@ async def test_failed_file_cleanup_is_persisted_and_retryable(client, db_factory
         await file_storage.cleanup_pending_files(db)
         assert not (await db.execute(select(MediaCleanup.path))).first()
     assert not file_storage.media_path(path).exists()
+
+
+def test_migration_metadata_has_no_pending_changes():
+    command.check(Config("alembic.ini"))

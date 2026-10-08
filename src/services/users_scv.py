@@ -195,7 +195,9 @@ class UsersService:
 
 
     async def update_profile(self, user_id: int, data: ProfileUpdateRequest, avatar: UploadFile | None = None) -> User:
-        user = await self.repo.get_by_id(user_id)
+        user = await self.repo.get_by_id_for_update(user_id)
+        if user is not None:
+            user = await self.repo.get_by_id(user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -298,7 +300,9 @@ class UsersService:
 
 
     async def admin_update_user(self, user_id: int, data: AdminUserUpdateRequest) -> User:
-        user = await self.repo.get_by_id(user_id)
+        user = await self.repo.get_by_id_for_update(user_id)
+        if user is not None:
+            user = await self.repo.get_by_id(user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -322,7 +326,9 @@ class UsersService:
         return await self.repo.update_user(user)
 
     async def admin_delete_user(self, user_id: int) -> None:
-        user = await self.repo.get_by_id(user_id)
+        user = await self.repo.get_by_id_for_update(user_id)
+        if user is not None:
+            user = await self.repo.get_by_id(user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
