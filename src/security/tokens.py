@@ -82,7 +82,7 @@ def _verify_token(token: str, expected_type: str) -> AccessTokenClaims:
 
     sub = payload.get("sub")
     role = payload.get("role")
-    if not isinstance(sub, str) or not sub:
+    if not isinstance(sub, str) or not sub.isascii() or not sub.isdigit() or int(sub) <= 0:
         raise TokenError("Invalid token subject")
     if not isinstance(role, str) or not role:
         raise TokenError("Invalid token role")

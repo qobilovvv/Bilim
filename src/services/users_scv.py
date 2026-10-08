@@ -86,10 +86,10 @@ class UsersService:
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        if not user.is_active:
+        if not user.is_active or user.is_blocked:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User is inactive"
+                detail="Account is unavailable"
             )
 
         # Verify password hash
@@ -118,10 +118,10 @@ class UsersService:
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        if not user.is_active:
+        if not user.is_active or user.is_blocked:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User is inactive"
+                detail="Account is unavailable"
             )
 
         # Verify password hash
@@ -138,7 +138,8 @@ class UsersService:
                 detail="Access denied: Admin privileges required"
             )
 
-        # Generate JWT token pair
+        user.last_login = datetime.now(timezone.utc)
+        await self.repo.update_user(user)
         tokens = create_token_pair(subject=str(user.id), role=user.type)
         return user, tokens
 
@@ -377,6 +378,6 @@ class UsersService:
         await self.repo.delete_user(user)
 
 
-async def get_users_service(db: AsyncSession = Depends(get_db_session)) -> UsersService:
+async def get_users_service(db: AsyncSession = Depends(get_db_session, scope="function")) -> UsersService:
     repo = UsersRepository(db)
     return UsersService(repo)
