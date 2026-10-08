@@ -7,5 +7,10 @@ __pycache__
 .env
 .volumes
 docker
-alembic/versions/*.py
-!alembic/versions/.gitkeep
+media/
+.env.*
+!.env.example
+tests/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/

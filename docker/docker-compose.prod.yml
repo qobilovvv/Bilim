@@ -1,46 +1,42 @@
 services:
   api:
     build:
-      context: .
+      context: ..
       dockerfile: docker/Dockerfile
-    command: python -m uvicorn src.main:app --host 0.0.0.0 --port 8000
+    command: python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips ${TRUSTED_PROXY_IPS:-127.0.0.1}
     ports:
-      - "${APP_HOST_PORT:-8000}:8000"
+      - "127.0.0.1:${APP_HOST_PORT:-8000}:8000"
     networks:
       - shared_network
     depends_on:
       postgres-db:
         condition: service_healthy
-      redis-db:
-        condition: service_healthy
     env_file:
-      - .env
+      - ../.env
     volumes:
       - media_data:/app/media
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz || exit 1"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/readyz', timeout=3).read()"]
       interval: 15s
       timeout: 5s
       retries: 5
       start_period: 10s
-    restart: always
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
     deploy:
       resources:
         limits:
           cpus: '0.75'
           memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 1G
 
   postgres-db:
     image: postgres:15-alpine
     networks:
       - shared_network
-    ports:
-      - "${POSTGRES_EXPOSED_PORT:-6666}:5432"
     env_file:
-      - .env
+      - ../.env
     volumes:
       - .volumes/pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -48,23 +44,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
-    restart: always
-
-  redis-db:
-    image: redis:7-alpine
-    networks:
-    - shared_network
-    ports:
-      - "${REDIS_EXPOSED_PORT:-6379}:6379"
-    restart: always
-    volumes:
-      - .volumes/redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
 
 networks:
   shared_network:

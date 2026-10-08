@@ -1,20 +1,26 @@
 from datetime import date, datetime, time, timezone
 from typing import Literal
 
-from fastapi import HTTPException, APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+
 from src.models.user import User, UserType
-from src.schemas.auth_schemas import UserListResponse, UserResponse, AdminUserUpdateRequest
-from src.schemas.course_schemas import CourseModerationListResponse, CourseModerationListItemResponse
-from src.services.users_scv import UsersService, get_users_service
-from src.services.courses_scv import CoursesService, get_courses_service
+from src.schemas.auth_schemas import AdminUserUpdateRequest, UserListResponse, UserResponse
+from src.schemas.course_schemas import (
+    CourseModerationListItemResponse,
+    CourseModerationListResponse,
+)
 from src.security.dependencies import get_current_admin
+from src.services.courses_service import CoursesService, get_courses_service
+from src.services.users_service import UsersService, get_users_service
 
 router = APIRouter(prefix="/moderation", tags=["moderation"])
 
 
 @router.get("/users", response_model=UserListResponse)
 async def list_users(
-    status_filter: Literal["all", "active", "inactive", "blocked"] = Query("all", alias="status", description="Filter: all, active, inactive, blocked"),
+    status_filter: Literal["all", "active", "inactive", "blocked"] = Query(
+        "all", alias="status", description="Filter: all, active, inactive, blocked"
+    ),
     search: str | None = Query(None, max_length=100, description="Search by full name"),
     date_from: date | None = Query(None, description="Filter users created from this date"),
     date_to: date | None = Query(None, description="Filter users created until this date"),
@@ -44,7 +50,9 @@ async def list_users(
 
 @router.get("/teachers", response_model=UserListResponse)
 async def list_teachers(
-    status_filter: Literal["all", "active", "inactive", "blocked"] = Query("all", alias="status", description="Filter: all, active, inactive, blocked"),
+    status_filter: Literal["all", "active", "inactive", "blocked"] = Query(
+        "all", alias="status", description="Filter: all, active, inactive, blocked"
+    ),
     search: str | None = Query(None, max_length=100, description="Search by full name"),
     date_from: date | None = Query(None, description="Filter teachers created from this date"),
     date_to: date | None = Query(None, description="Filter teachers created until this date"),
@@ -84,7 +92,9 @@ async def list_courses_for_moderation(
     service: CoursesService = Depends(get_courses_service),
 ):
     """Admin endpoint listing all courses (active and inactive), with full teacher contact info."""
-    items, total = await service.list_courses(category_id, type, teacher_id, search, active_only, limit, offset)
+    items, total = await service.list_courses(
+        category_id, type, teacher_id, search, active_only, limit, offset
+    )
     return CourseModerationListResponse(
         total=total,
         limit=limit,
@@ -113,3 +123,13 @@ async def delete_user(
     """Admin endpoint to hard delete a user."""
     await service.admin_delete_user(user_id)
 
+
+@router.get("/metrics")
+async def operational_metrics(current_admin: User = Depends(get_current_admin)):
+    """Process-local HTTP counters for private operational monitoring."""
+    from src.infrastructure.observability import request_metrics
+
+    return [
+        {"method": method, "path": path, "status": status, **values}
+        for (method, path, status), values in sorted(request_metrics.items())
+    ]

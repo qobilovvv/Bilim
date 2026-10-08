@@ -1,25 +1,28 @@
 import os
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from src.api.media_handlers import router as media_router
 
-from src.infrastructure.config import settings
+from src.api.media_handlers import router as media_router
 from src.api.routes import api_router
+from src.infrastructure.config import settings
+from src.infrastructure.observability import RequestLoggingMiddleware, configure_logging
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup logic goes here
-    print("🚀 Starting up application services...")
+    configure_logging()
 
     # Ensure media directories exist
-    os.makedirs("media/", exist_ok=True)
+    os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
 
     yield
     # Shutdown logic goes here
     from src.infrastructure.database import engine
     from src.infrastructure.eskiz import eskiz_client
+
     await eskiz_client.close()
     await engine.dispose()
 
@@ -30,8 +33,10 @@ def create_app() -> FastAPI:
         version=settings.VERSION,
         lifespan=lifespan,
         docs_url="/docs",
-        redoc_url="/redoc"
+        redoc_url="/redoc",
     )
+
+    app.add_middleware(RequestLoggingMiddleware)
 
     # 1. Configure Middlewares
     app.add_middleware(
@@ -49,7 +54,23 @@ def create_app() -> FastAPI:
     @app.get("/healthz", tags=["health"])
     async def healthz():
         from fastapi import Response
+
         return Response(content="OK", media_type="text/plain")
+
+    @app.get("/readyz", tags=["health"])
+    async def readyz():
+        from fastapi import Response
+        from sqlalchemy import text
+        from sqlalchemy.exc import SQLAlchemyError
+
+        from src.infrastructure.database import AsyncSessionFactory
+
+        try:
+            async with AsyncSessionFactory() as db:
+                await db.execute(text("SELECT 1"))
+        except (SQLAlchemyError, OSError):
+            return Response("Unavailable", status_code=503, media_type="text/plain")
+        return Response("OK", media_type="text/plain")
 
     return app
 
