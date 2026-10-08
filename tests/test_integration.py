@@ -2,6 +2,8 @@
 
 import asyncio
 import os
+import subprocess
+import sys
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -331,7 +333,10 @@ async def test_failed_file_cleanup_is_persisted_and_retryable(
 
 
 def test_migration_metadata_has_no_pending_changes():
-    command.check(Config("alembic.ini"))
+    result = subprocess.run(
+        [sys.executable, "-m", "alembic", "check"], capture_output=True, text=True, timeout=30
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 async def test_refresh_rotation_serializes_concurrent_requests(client):

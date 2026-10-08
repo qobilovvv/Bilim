@@ -11,7 +11,7 @@ sys.path.append(os.getcwd())
 
 # Import your project's settings and Base metadata
 from src.infrastructure.config import settings
-from src.infrastructure.database import Base
+from src.models import Base
 
 # this is the Alembic Config object, which provides access to the values within the .ini file in use.
 config = context.config
