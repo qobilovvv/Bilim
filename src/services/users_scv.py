@@ -1,4 +1,9 @@
-from datetime import datetime, timezone
+import hashlib
+import secrets
+from datetime import datetime, timedelta, timezone
+from src.infrastructure.config import settings
+from src.models.auth_session import AuthSession
+from src.repositories.sessions_repo import SessionsRepository
 
 from fastapi import Depends, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,8 +20,8 @@ from src.schemas.auth_schemas import (
     AdminUserUpdateRequest,
 )
 from src.services.file_storage import IMAGE_EXTENSIONS, stage_upload, queue_media_cleanup
-from src.security.passwords import hash_password, verify_password
-from src.security.tokens import create_token_pair, TokenPair
+from src.security.passwords import hash_password_async, verify_password_async
+from src.security.tokens import create_token_pair, TokenPair, TokenError, verify_refresh_token
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_AVATAR_SIZE = 5 * 1024 * 1024  # 5 MB
@@ -24,6 +29,43 @@ MAX_AVATAR_SIZE = 5 * 1024 * 1024  # 5 MB
 class UsersService:
     def __init__(self, repo: UsersRepository):
         self.repo = repo
+
+    async def _issue_tokens(self, user, session=None) -> TokenPair:
+        session_id = session.id if session is not None else secrets.token_hex(16)
+        tokens = create_token_pair(subject=str(user.id), role=user.type,
+                                   version=user.auth_version, session_id=session_id)
+        digest = hashlib.sha256(tokens.refresh_token.encode()).hexdigest()
+        expires = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        if session is None:
+            session = AuthSession(id=session_id, user_id=user.id, token_digest=digest, expires_at=expires)
+            self.repo.db.add(session)
+        else:
+            session.token_digest = digest
+            session.expires_at = expires
+        await self.repo.db.flush()
+        return tokens
+
+    async def refresh_tokens(self, token: str) -> TokenPair:
+        try:
+            claims = verify_refresh_token(token)
+        except TokenError as exc:
+            raise HTTPException(401, "Invalid refresh token") from exc
+        # Shared ordering with password reset/change/logout prevents concurrent token resurrection.
+        user = await self.repo.get_by_id_for_update(int(claims.sub))
+        if not user or not user.is_active or user.is_blocked or user.auth_version != claims.version:
+            raise HTTPException(401, "Session expired or revoked")
+        session = await SessionsRepository(self.repo.db).get_active(claims.session_id, user.id, lock=True)
+        if not session or not secrets.compare_digest(session.token_digest, hashlib.sha256(token.encode()).hexdigest()):
+            raise HTTPException(401, "Session expired or revoked")
+        return await self._issue_tokens(user, session)
+
+    async def logout_all(self, user_id: int):
+        user = await self.repo.get_by_id_for_update(user_id)
+        if not user:
+            raise HTTPException(401, "User not found")
+        user.auth_version += 1
+        await SessionsRepository(self.repo.db).revoke_all(user_id)
+        await self.repo.db.flush()
 
     async def register_user(self, data: UserRegisterRequest) -> User:
         # Check if phone number is already registered
@@ -35,7 +77,7 @@ class UsersService:
             )
 
         # Hash the password and save
-        hashed = hash_password(data.password)
+        hashed = await hash_password_async(data.password)
         new_user = User(
             first_name=data.first_name,
             phone=data.phone,
@@ -56,7 +98,7 @@ class UsersService:
             )
 
         # Hash the password
-        hashed = hash_password(data.password)
+        hashed = await hash_password_async(data.password)
         
         # Create user as seller and initialize an empty seller profile
         new_user = User(
@@ -91,7 +133,7 @@ class UsersService:
             )
 
         # Verify password hash
-        if not verify_password(data.password, user.password):
+        if not await verify_password_async(data.password, user.password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect phone number or password",
@@ -103,7 +145,7 @@ class UsersService:
         await self.repo.update_user(user)
 
         # Generate JWT token pair
-        tokens = create_token_pair(subject=str(user.id), role=user.type)
+        tokens = await self._issue_tokens(user)
         return user, tokens
 
     async def login_admin(self, data: AdminLoginRequest) -> tuple[User, TokenPair]:
@@ -123,7 +165,7 @@ class UsersService:
             )
 
         # Verify password hash
-        if not verify_password(data.password, user.password):
+        if not await verify_password_async(data.password, user.password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect username or password",
@@ -138,7 +180,7 @@ class UsersService:
 
         user.last_login = datetime.now(timezone.utc)
         await self.repo.update_user(user)
-        tokens = create_token_pair(subject=str(user.id), role=user.type)
+        tokens = await self._issue_tokens(user)
         return user, tokens
 
 
@@ -229,7 +271,7 @@ class UsersService:
         return await self.repo.update_user(user)
 
     async def update_password(self, user_id: int, data: PasswordUpdateRequest) -> None:
-        user = await self.repo.get_by_id(user_id)
+        user = await self.repo.get_by_id_for_update(user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -237,14 +279,16 @@ class UsersService:
             )
 
         # Verify the current password
-        if not verify_password(data.old_password, user.password):
+        if not await verify_password_async(data.old_password, user.password):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Incorrect current password"
             )
 
         # Hash and save the new password
-        user.password = hash_password(data.new_password)
+        user.password = await hash_password_async(data.new_password)
+        user.auth_version += 1
+        await SessionsRepository(self.repo.db).revoke_all(user_id)
         await self.repo.update_user(user)
 
     async def list_users(

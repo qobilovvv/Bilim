@@ -16,6 +16,14 @@ class UsersRepository(IUsersRepository):
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_by_id_for_update(self, user_id: int) -> User | None:
+        stmt = select(User).where(User.id == user_id).with_for_update().execution_options(populate_existing=True)
+        return (await self.db.execute(stmt)).scalar_one_or_none()
+
+    async def get_by_phone_for_update(self, phone: str) -> User | None:
+        stmt = select(User).where(User.phone == phone).with_for_update().execution_options(populate_existing=True)
+        return (await self.db.execute(stmt)).scalar_one_or_none()
+
     async def get_by_phone(self, phone: str) -> User | None:
         stmt = select(User).options(joinedload(User.seller_profile)).where(User.phone == phone)
         result = await self.db.execute(stmt)

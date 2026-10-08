@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.infrastructure.database import get_db_session
 from src.models.user import User, UserType
 from src.repositories.users_repo import UsersRepository
+from src.repositories.sessions_repo import SessionsRepository
 from src.security.tokens import TokenError, verify_access_token
 
 security = HTTPBearer()
@@ -35,6 +36,8 @@ async def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is unavailable"
         )
+    if claims.version != user.auth_version or not await SessionsRepository(db).get_active(claims.session_id, user.id):
+        raise HTTPException(401, "Session expired or revoked", headers={"WWW-Authenticate": "Bearer"})
     return user
 
 async def get_current_admin(

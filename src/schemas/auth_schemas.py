@@ -102,3 +102,7 @@ class AdminUserUpdateRequest(BaseModel):
     is_active: bool | None = None
     is_blocked: bool | None = None
 
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str

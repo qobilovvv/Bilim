@@ -18,7 +18,10 @@ async def lifespan(app: FastAPI):
 
     yield
     # Shutdown logic goes here
-    print("🛑 Shutting down application services...")
+    from src.infrastructure.database import engine
+    from src.infrastructure.eskiz import eskiz_client
+    await eskiz_client.close()
+    await engine.dispose()
 
 
 def create_app() -> FastAPI:

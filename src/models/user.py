@@ -20,6 +20,8 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=True)
     password = Column(String, nullable=False)
 
+    auth_version = Column(Integer, nullable=False, default=0, server_default="0")
+
     avatar = Column(String, nullable=True)  # Relative path to avatar image in media/
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())

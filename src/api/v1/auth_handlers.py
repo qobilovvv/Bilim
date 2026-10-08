@@ -1,6 +1,9 @@
+from fastapi.responses import JSONResponse
+from src.security.rate_limits import rate_limit_auth
 from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 from src.models.user import User
 from src.schemas.auth_schemas import (
+    RefreshTokenRequest,
     UserLoginRequest,
     AdminLoginRequest,
     UserRegisterRequest,
@@ -17,7 +20,7 @@ from src.services.users_scv import UsersService, get_users_service
 from src.services.password_reset_scv import PasswordResetService, get_password_reset_service
 from src.security.dependencies import get_current_user
 
-router = APIRouter(prefix="")
+router = APIRouter(prefix="", dependencies=[Depends(rate_limit_auth)])
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED, tags=["auth"])
 async def register(
@@ -131,7 +134,7 @@ async def send_code(
     service: PasswordResetService = Depends(get_password_reset_service),
 ):
     await service.send_reset_code(data.phone)
-    return {"message": "Verification code sent successfully"}
+    return {"message": "If the account is eligible, a verification code has been sent"}
 
 @router.post("/forgot-password/verify-code", status_code=status.HTTP_200_OK, tags=["auth"])
 async def verify_code(
@@ -139,6 +142,8 @@ async def verify_code(
     service: PasswordResetService = Depends(get_password_reset_service),
 ):
     token = await service.verify_reset_code(data.phone, data.code)
+    if token is None:
+        return JSONResponse(status_code=400, content={"detail": "Invalid or expired verification code"})
     return {"token": token, "message": "Verification code verified successfully"}
 
 @router.post("/forgot-password/new-password", status_code=status.HTTP_200_OK, tags=["auth"])
@@ -148,3 +153,14 @@ async def new_password(
 ):
     await service.reset_password(data.phone, data.token, data.new_password)
     return {"message": "Password reset successfully"}
+
+@router.post("/refresh", response_model=TokenResponse, tags=["auth"])
+async def refresh_tokens(data: RefreshTokenRequest, service: UsersService = Depends(get_users_service)):
+    tokens = await service.refresh_tokens(data.refresh_token)
+    return TokenResponse(access_token=tokens.access_token, refresh_token=tokens.refresh_token)
+
+
+@router.post("/logout", status_code=204, tags=["auth"])
+async def logout(current_user: User = Depends(get_current_user), service: UsersService = Depends(get_users_service)):
+    """Revoke all sessions for this account, including current access tokens."""
+    await service.logout_all(current_user.id)

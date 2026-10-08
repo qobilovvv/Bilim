@@ -14,6 +14,18 @@ class PasswordResetRepository(IPasswordResetRepository):
         await self.db.refresh(reset_code)
         return reset_code
 
+    async def invalidate_for_phone(self, phone):
+        from sqlalchemy import update
+        await self.db.execute(update(PasswordResetCode).where(PasswordResetCode.phone == phone)
+                              .values(expires_at=func.now()))
+
+    async def get_latest_challenge(self, phone):
+        stmt = (select(PasswordResetCode).where(PasswordResetCode.phone == phone,
+                PasswordResetCode.verified.is_(False), PasswordResetCode.expires_at > func.now())
+                .order_by(PasswordResetCode.created_at.desc(), PasswordResetCode.id.desc())
+                .limit(1).with_for_update())
+        return (await self.db.execute(stmt)).scalar_one_or_none()
+
     async def get_active_code(self, phone: str, code: str) -> PasswordResetCode | None:
         stmt = (
             select(PasswordResetCode)
@@ -25,7 +37,7 @@ class PasswordResetRepository(IPasswordResetRepository):
                     PasswordResetCode.expires_at > func.now()
                 )
             )
-            .order_by(PasswordResetCode.created_at.desc())
+            .order_by(PasswordResetCode.created_at.desc()).limit(1).with_for_update()
         )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
@@ -41,7 +53,7 @@ class PasswordResetRepository(IPasswordResetRepository):
                     PasswordResetCode.expires_at > func.now()
                 )
             )
-            .order_by(PasswordResetCode.created_at.desc())
+            .order_by(PasswordResetCode.created_at.desc()).limit(1).with_for_update()
         )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()

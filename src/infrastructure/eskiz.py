@@ -1,80 +1,74 @@
+import asyncio
+
 import httpx
-import logging
+
 from src.infrastructure.config import settings
 
-logger = logging.getLogger(__name__)
+
+class EskizError(Exception):
+    pass
+
 
 class EskizClient:
     def __init__(self):
-        self.base_url = settings.ESKIZ_BASE_URL.rstrip('/')
-        self.email = settings.ESKIZ_EMAIL
-        self.password = settings.ESKIZ_PASSWORD
-        self.from_number = settings.ESKIZ_FROM
+        self.base_url = settings.ESKIZ_BASE_URL.rstrip("/")
+        self.token = None
+        self._client = None
+        self._auth_lock = asyncio.Lock()
+
+    @property
+    def client(self):
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=httpx.Timeout(10, connect=5),
+                                           limits=httpx.Limits(max_connections=20, max_keepalive_connections=10))
+        return self._client
+
+    async def close(self):
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
         self.token = None
 
-    async def authenticate(self) -> None:
-        if not self.email or not self.password:
-            raise ValueError("ESKIZ_EMAIL and ESKIZ_PASSWORD must be configured")
-        
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f"{self.base_url}/auth/login",
-                data={"email": self.email, "password": self.password},
-                headers={"Content-Type": "application/x-www-form-urlencoded"}
-            )
-            if resp.status_code >= 400:
-                raise Exception(f"Eskiz authentication failed: {resp.status_code} {resp.text}")
-            
-            res = resp.json()
-            token = res.get("data", {}).get("token")
-            if not token:
-                raise Exception(f"Eskiz token not found in response: {res}")
+    async def authenticate(self, previous_token=None):
+        async with self._auth_lock:
+            if self.token and self.token != previous_token:
+                return
+            if not settings.ESKIZ_EMAIL or not settings.ESKIZ_PASSWORD:
+                raise EskizError("SMS credentials are not configured")
+            response = await self.client.post(f"{self.base_url}/auth/login", data={
+                "email": settings.ESKIZ_EMAIL, "password": settings.ESKIZ_PASSWORD})
+            if response.is_error:
+                raise EskizError("SMS authentication failed")
+            try:
+                token = response.json().get("data", {}).get("token")
+            except (ValueError, AttributeError) as exc:
+                raise EskizError("Invalid SMS provider response") from exc
+            if not isinstance(token, str) or not token:
+                raise EskizError("SMS authentication failed")
             self.token = token
 
-    async def send_sms(self, phone: str, text: str) -> None:
-        # Clean phone number: keep only digits
-        phone = "".join(filter(str.isdigit, phone))
-        
+    async def send_sms(self, phone, text):
         if not self.token:
             await self.authenticate()
+        token = self.token
+        payload = {"mobile_phone": phone, "message": text, "from": settings.ESKIZ_FROM}
+        response = await self.client.post(f"{self.base_url}/message/sms/send", json=payload,
+                                          headers={"Authorization": f"Bearer {token}"})
+        # Only retry explicit authentication rejection; a timed-out send may already have succeeded.
+        if response.status_code == 401:
+            await self.authenticate(token)
+            response = await self.client.post(f"{self.base_url}/message/sms/send", json=payload,
+                                              headers={"Authorization": f"Bearer {self.token}"})
+        if response.is_error:
+            raise EskizError("SMS request failed")
+        try:
+            body = response.json()
+            status = str(body.get("status", "")).lower().strip()
+            message = str(body.get("message", "")).lower()
+        except (ValueError, AttributeError) as exc:
+            raise EskizError("Invalid SMS provider response") from exc
+        if status not in {"success", "waiting", "queued"} and "waiting for sms provider" not in message:
+            raise EskizError("SMS request was rejected")
 
-        async def make_request():
-            async with httpx.AsyncClient() as client:
-                payload = {
-                    "mobile_phone": phone,
-                    "message": text,
-                    "from": self.from_number
-                }
-                return await client.post(
-                    f"{self.base_url}/message/sms/send",
-                    json=payload,
-                    headers={
-                        "Authorization": f"Bearer {self.token}",
-                        "Content-Type": "application/json"
-                    }
-                )
 
-        resp = await make_request()
-        
-        # If token expired (401), re-authenticate once
-        if resp.status_code == 401:
-            logger.info("Eskiz token expired, re-authenticating...")
-            await self.authenticate()
-            resp = await make_request()
-
-        if resp.status_code >= 400:
-            raise Exception(f"Eskiz HTTP request failed: {resp.status_code} {resp.text}")
-
-        res = resp.json()
-        status = str(res.get("status", "")).lower().strip()
-        message = str(res.get("message", "")).lower().strip()
-
-        if status in ("success", "waiting", "queued"):
-            return
-        if "waiting for sms provider" in message:
-            return
-
-        raise Exception(f"Eskiz SMS failed: {res.get('message')}")
-
-# Shared client instance
 eskiz_client = EskizClient()

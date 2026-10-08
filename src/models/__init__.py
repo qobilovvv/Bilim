@@ -17,6 +17,8 @@ from src.models.homework import (
 
 __all__ = [
     "Base",
+    "AuthSession",
+    "AuthRateLimit",
     "MediaCleanup",
     "User",
     "SellerProfile",
@@ -37,3 +39,5 @@ __all__ = [
 
 
 from src.models.media_cleanup import MediaCleanup
+
+from src.models.auth_session import AuthSession, AuthRateLimit

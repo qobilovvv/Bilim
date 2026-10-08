@@ -7,7 +7,8 @@ class PasswordResetCode(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     phone = Column(String, nullable=False, index=True)
-    code = Column(String, nullable=False)
+    code = Column(String(64), nullable=False)
+    attempts = Column(Integer, nullable=False, default=0, server_default="0")
     token = Column(String, nullable=True, unique=True, index=True)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     verified = Column(Boolean, default=False, nullable=False)
