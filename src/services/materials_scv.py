@@ -6,7 +6,7 @@ from src.models.user import User
 from src.repositories.materials_repo import MaterialsRepository
 from src.repositories.lessons_repo import LessonsRepository
 from src.services.course_permissions import check_course_permission
-from src.services.file_storage import save_upload_file, delete_media_file
+from src.services.file_storage import stage_upload, queue_media_cleanup, course_media_paths, lesson_media_paths
 
 MATERIAL_EXTENSIONS = {
     "pdf", "ppt", "pptx", "doc", "docx", "xls", "xlsx", "csv", "zip", "rar", "txt"
@@ -24,7 +24,7 @@ class MaterialsService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lesson not found")
         check_course_permission(lesson.module.course, current_user)
 
-        file_path = await save_upload_file(file, "lessons/materials", MATERIAL_EXTENSIONS, MAX_MATERIAL_SIZE)
+        file_path = await stage_upload(self.repo.db, file, "lessons/materials", MATERIAL_EXTENSIONS, MAX_MATERIAL_SIZE)
         material = Material(lesson_id=lesson_id, name=name, file=file_path)
         return await self.repo.create_material(material)
 
@@ -33,7 +33,7 @@ class MaterialsService:
         if not material:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Material not found")
         check_course_permission(material.lesson.module.course, current_user)
-        delete_media_file(material.file)
+        await queue_media_cleanup(self.repo.db, [material.file])
         await self.repo.delete_material(material)
 
 async def get_materials_service(db: AsyncSession = Depends(get_db_session, scope="function")) -> MaterialsService:

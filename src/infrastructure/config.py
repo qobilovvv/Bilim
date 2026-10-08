@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     CORS_ORIGINS: list[str] = ["*"]
 
+    MEDIA_ROOT: str = "media"
+
     # Database
     DATABASE_URL: str
 

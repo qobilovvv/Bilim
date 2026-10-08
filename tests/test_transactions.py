@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from fastapi import Depends, FastAPI, HTTPException
@@ -22,6 +22,8 @@ async def test_invalid_replacement_preserves_homework():
 
 async def test_commit_failure_is_returned_before_success(monkeypatch):
     session = AsyncMock()
+    session.info = {}
+    session.in_transaction = Mock(return_value=False)
     session.commit.side_effect = IntegrityError("insert", {}, Exception("duplicate"))
     factory = AsyncMock()
     factory.__aenter__.return_value = session
@@ -40,6 +42,8 @@ async def test_commit_failure_is_returned_before_success(monkeypatch):
 
 async def test_failed_request_rolls_back_without_commit(monkeypatch):
     session = AsyncMock()
+    session.info = {}
+    session.in_transaction = Mock(return_value=False)
     factory = AsyncMock()
     factory.__aenter__.return_value = session
     monkeypatch.setattr(database, "AsyncSessionFactory", lambda: factory)

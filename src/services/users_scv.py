@@ -1,8 +1,5 @@
-import os
-import uuid
 from datetime import datetime, timezone
 
-import aiofiles
 from fastapi import Depends, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.infrastructure.database import get_db_session
@@ -17,6 +14,7 @@ from src.schemas.auth_schemas import (
     UserListItemResponse,
     AdminUserUpdateRequest,
 )
+from src.services.file_storage import IMAGE_EXTENSIONS, stage_upload, queue_media_cleanup
 from src.security.passwords import hash_password, verify_password
 from src.security.tokens import create_token_pair, TokenPair
 
@@ -225,36 +223,8 @@ class UsersService:
                 user.seller_profile.description = data.description.strip() if data.description else None
 
         if avatar:
-            # Validate file type
-            if avatar.content_type not in ALLOWED_IMAGE_TYPES:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid image type. Allowed: JPEG, PNG, WebP"
-                )
-            
-            content = await avatar.read()
-            if len(content) > MAX_AVATAR_SIZE:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Image too large. Maximum size: 5 MB"
-                )
-
-            # Delete old avatar
-            if user.avatar:
-                old_path = os.path.join("media", user.avatar)
-                if os.path.exists(old_path):
-                    os.remove(old_path)
-
-            ext = avatar.filename.rsplit(".", 1)[-1] if avatar.filename and "." in avatar.filename else "jpg"
-            filename = f"{uuid.uuid4().hex}.{ext}"
-            avatar_dir = os.path.join("media", "avatars")
-            os.makedirs(avatar_dir, exist_ok=True)
-            file_path = os.path.join(avatar_dir, filename)
-
-            async with aiofiles.open(file_path, "wb") as f:
-                await f.write(content)
-            
-            user.avatar = f"avatars/{filename}"
+            user.avatar = await stage_upload(self.repo.db, avatar, "avatars", IMAGE_EXTENSIONS,
+                                             MAX_AVATAR_SIZE, user.avatar)
 
         return await self.repo.update_user(user)
 
@@ -375,6 +345,7 @@ class UsersService:
         
         # Optionally, check if user has dependencies that shouldn't be deleted,
         # but the DB constraints will handle cascades usually.
+        await queue_media_cleanup(self.repo.db, [user.avatar])
         await self.repo.delete_user(user)
 
 

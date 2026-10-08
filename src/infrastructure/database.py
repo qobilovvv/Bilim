@@ -1,3 +1,4 @@
+import logging
 from typing import AsyncGenerator
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
@@ -50,10 +51,28 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
             yield session
             await session.commit()
         except IntegrityError as exc:
+            session.info["transaction_failed"] = True
             await session.rollback()
             raise HTTPException(status_code=409, detail="The change conflicts with an existing record or reference") from exc
-        except Exception:
+        except BaseException:
+            session.info["transaction_failed"] = True
             await session.rollback()
             raise
         finally:
-            await session.close()
+            from anyio import to_thread
+            from src.services.file_storage import cleanup_pending_files, delete_media_file
+            # A committed file reference must never be removed by rollback cleanup.
+            if session.in_transaction():
+                await session.rollback()
+            if session.info.pop("transaction_failed", False):
+                for path in session.info.get("new_media", []):
+                    try:
+                        await to_thread.run_sync(delete_media_file, path)
+                    except Exception:
+                        logging.getLogger(__name__).exception("Rollback media cleanup failed")
+            elif session.info.get("media_cleanup"):
+                try:
+                    await cleanup_pending_files(session, session.info["media_cleanup"])
+                except Exception:
+                    await session.rollback()
+                    logging.getLogger(__name__).exception("Deferred media cleanup retained for retry")

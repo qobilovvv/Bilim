@@ -8,7 +8,7 @@ from src.repositories.categories_repo import CategoriesRepository
 from src.repositories.users_repo import UsersRepository
 from src.schemas.course_schemas import CourseCreateRequest, CourseUpdateRequest
 from src.services.course_permissions import check_course_permission
-from src.services.file_storage import save_upload_file, delete_media_file
+from src.services.file_storage import stage_upload, queue_media_cleanup, course_media_paths, lesson_media_paths
 
 IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 VIDEO_EXTENSIONS = {"mp4", "mov", "webm", "mkv"}
@@ -102,15 +102,13 @@ class CoursesService:
         check_course_permission(course, current_user)
 
         if preview_image:
-            delete_media_file(course.preview_image)
-            course.preview_image = await save_upload_file(
-                preview_image, "courses/previews", IMAGE_EXTENSIONS, MAX_IMAGE_SIZE
+            course.preview_image = await stage_upload(self.repo.db, 
+                preview_image, "courses/previews", IMAGE_EXTENSIONS, MAX_IMAGE_SIZE, course.preview_image
             )
 
         if preview_video:
-            delete_media_file(course.preview_video)
-            course.preview_video = await save_upload_file(
-                preview_video, "courses/previews", VIDEO_EXTENSIONS, MAX_VIDEO_SIZE
+            course.preview_video = await stage_upload(self.repo.db, 
+                preview_video, "courses/previews", VIDEO_EXTENSIONS, MAX_VIDEO_SIZE, course.preview_video
             )
 
         return await self.repo.update_course(course)
@@ -118,8 +116,7 @@ class CoursesService:
     async def delete_course(self, id: int, current_user: User) -> None:
         course = await self.get_course(id)
         check_course_permission(course, current_user)
-        delete_media_file(course.preview_image)
-        delete_media_file(course.preview_video)
+        await queue_media_cleanup(self.repo.db, course_media_paths(course))
         await self.repo.delete_course(course)
 
 async def get_courses_service(db: AsyncSession = Depends(get_db_session, scope="function")) -> CoursesService:

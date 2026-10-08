@@ -15,7 +15,7 @@ from src.repositories.homework_repo import HomeworkRepository
 from src.repositories.lessons_repo import LessonsRepository
 from src.schemas.course_schemas import HomeworkUpsertRequest
 from src.services.course_permissions import check_course_permission
-from src.services.file_storage import save_upload_file, delete_media_file
+from src.services.file_storage import stage_upload, queue_media_cleanup, course_media_paths, lesson_media_paths
 
 MIN_DEADLINE_DAYS = 2
 MAX_DEADLINE_DAYS = 8
@@ -107,6 +107,8 @@ class HomeworkService:
 
         existing = await self.repo.get_by_lesson_id(lesson_id)
         if existing:
+            if existing.file_detail:
+                await queue_media_cleanup(self.repo.db, [existing.file_detail.example_file])
             await self.repo.delete_homework(existing)
         if homework is None:
             return None
@@ -119,9 +121,8 @@ class HomeworkService:
         if not homework or homework.type != HomeworkType.FILE or not homework.file_detail:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Lesson has no file-type homework")
 
-        delete_media_file(homework.file_detail.example_file)
-        homework.file_detail.example_file = await save_upload_file(
-            file, "homeworks/examples", EXAMPLE_FILE_EXTENSIONS, MAX_EXAMPLE_FILE_SIZE
+        homework.file_detail.example_file = await stage_upload(self.repo.db, 
+            file, "homeworks/examples", EXAMPLE_FILE_EXTENSIONS, MAX_EXAMPLE_FILE_SIZE, homework.file_detail.example_file
         )
         return await self.repo.update_homework(homework)
 
@@ -131,7 +132,7 @@ class HomeworkService:
         if not homework:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Homework not found")
         if homework.file_detail and homework.file_detail.example_file:
-            delete_media_file(homework.file_detail.example_file)
+            await queue_media_cleanup(self.repo.db, [homework.file_detail.example_file])
         await self.repo.delete_homework(homework)
 
 async def get_homework_service(db: AsyncSession = Depends(get_db_session, scope="function")) -> HomeworkService:

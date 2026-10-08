@@ -17,6 +17,7 @@ from src.models.homework import (
 
 __all__ = [
     "Base",
+    "MediaCleanup",
     "User",
     "SellerProfile",
     "Category",
@@ -34,3 +35,5 @@ __all__ = [
 ]
 
 
+
+from src.models.media_cleanup import MediaCleanup

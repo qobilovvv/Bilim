@@ -7,7 +7,7 @@ from src.repositories.lessons_repo import LessonsRepository
 from src.repositories.modules_repo import ModulesRepository
 from src.schemas.course_schemas import LessonCreateRequest, LessonUpdateRequest
 from src.services.course_permissions import check_course_permission
-from src.services.file_storage import save_upload_file, delete_media_file
+from src.services.file_storage import stage_upload, queue_media_cleanup, course_media_paths, lesson_media_paths
 
 VIDEO_EXTENSIONS = {"mp4", "mov", "webm", "mkv"}
 MAX_VIDEO_SIZE = 500 * 1024 * 1024
@@ -52,13 +52,12 @@ class LessonsService:
 
     async def update_video(self, lesson_id: int, video: UploadFile, current_user: User) -> Lesson:
         lesson = await self._get_owned_lesson(lesson_id, current_user)
-        delete_media_file(lesson.video)
-        lesson.video = await save_upload_file(video, "lessons/videos", VIDEO_EXTENSIONS, MAX_VIDEO_SIZE)
+        lesson.video = await stage_upload(self.repo.db, video, "lessons/videos", VIDEO_EXTENSIONS, MAX_VIDEO_SIZE, lesson.video)
         return await self.repo.update_lesson(lesson)
 
     async def delete_lesson(self, lesson_id: int, current_user: User) -> None:
         lesson = await self._get_owned_lesson(lesson_id, current_user)
-        delete_media_file(lesson.video)
+        await queue_media_cleanup(self.repo.db, lesson_media_paths(lesson))
         await self.repo.delete_lesson(lesson)
 
 async def get_lessons_service(db: AsyncSession = Depends(get_db_session, scope="function")) -> LessonsService:

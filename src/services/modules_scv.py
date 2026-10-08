@@ -7,6 +7,7 @@ from src.repositories.modules_repo import ModulesRepository
 from src.repositories.courses_repo import CoursesRepository
 from src.schemas.course_schemas import ModuleCreateRequest, ModuleUpdateRequest
 from src.services.course_permissions import check_course_permission
+from src.services.file_storage import queue_media_cleanup, module_media_paths
 
 class ModulesService:
     def __init__(self, repo: ModulesRepository, courses_repo: CoursesRepository):
@@ -48,6 +49,7 @@ class ModulesService:
 
     async def delete_module(self, module_id: int, current_user: User) -> None:
         module = await self._get_owned_module(module_id, current_user)
+        await queue_media_cleanup(self.repo.db, module_media_paths(module))
         await self.repo.delete_module(module)
 
 async def get_modules_service(db: AsyncSession = Depends(get_db_session, scope="function")) -> ModulesService:
