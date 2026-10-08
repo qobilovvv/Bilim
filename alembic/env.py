@@ -1,11 +1,10 @@
-from logging.config import fileConfig
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-
-from alembic import context
-
 import os
 import sys
+from logging.config import fileConfig
+
+from sqlalchemy import engine_from_config, pool
+
+from alembic import context
 
 # Add the project root to the sys.path so we can import src
 sys.path.append(os.getcwd())
@@ -13,7 +12,6 @@ sys.path.append(os.getcwd())
 # Import your project's settings and Base metadata
 from src.infrastructure.config import settings
 from src.infrastructure.database import Base
-import src.models  # Import models to register them with Base
 
 # this is the Alembic Config object, which provides access to the values within the .ini file in use.
 config = context.config
@@ -32,13 +30,15 @@ target_metadata = Base.metadata
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 
+
 def get_url():
-    # Convert asyncpg url to psycopg2 url for alembic if needed, 
+    # Convert asyncpg url to psycopg2 url for alembic if needed,
     # but here we assume the user provides a compatible sync url or we handle it.
     url = settings.DATABASE_URL
     if url.startswith("postgresql+asyncpg://"):
         url = url.replace("postgresql+asyncpg://", "postgresql://")
     return url
+
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
@@ -80,9 +80,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()

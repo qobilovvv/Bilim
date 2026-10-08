@@ -1,13 +1,13 @@
-from sqlalchemy import CheckConstraint, Column, Integer, String, Boolean, DateTime
+from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, Integer, String
 from sqlalchemy.sql import func
+
 from src.infrastructure.database import Base
+
 
 class PasswordResetCode(Base):
     __tablename__ = "password_reset_codes"
 
-    __table_args__ = (
-        CheckConstraint('attempts >= 0', name='ck_reset_attempts'),
-    )
+    __table_args__ = (CheckConstraint("attempts >= 0", name="ck_reset_attempts"),)
 
     id = Column(Integer, primary_key=True, index=True)
     phone = Column(String, nullable=False, index=True)

@@ -1,22 +1,20 @@
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from src.models.category import Category
-from src.models.user import User
+
 from src.models.course import Course
-from src.models.module import Module
-from src.models.lesson import Lesson
 from src.models.homework import Homework, TestHomework, TestQuestion
-from src.repositories.interfaces import ICoursesRepository
+from src.models.lesson import Lesson
+from src.models.module import Module
 from src.repositories.course_visibility import public_course_conditions
+from src.repositories.interfaces import ICoursesRepository
+
 
 def _full_tree_options():
     return (
         selectinload(Course.category),
         selectinload(Course.teacher),
-        selectinload(Course.modules)
-        .selectinload(Module.lessons)
-        .selectinload(Lesson.materials),
+        selectinload(Course.modules).selectinload(Module.lessons).selectinload(Lesson.materials),
         selectinload(Course.modules)
         .selectinload(Module.lessons)
         .selectinload(Lesson.homework)
@@ -33,6 +31,7 @@ def _full_tree_options():
         .selectinload(Homework.file_detail),
     )
 
+
 class CoursesRepository(ICoursesRepository):
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -47,10 +46,17 @@ class CoursesRepository(ICoursesRepository):
         return result.unique().scalar_one_or_none()
 
     async def get_public_by_id(self, id: int) -> Course | None:
-        stmt = (select(Course).join(Course.category).join(Course.teacher)
-                .where(Course.id == id, *public_course_conditions())
-                .options(selectinload(Course.category), selectinload(Course.teacher),
-                         selectinload(Course.modules).selectinload(Module.lessons)))
+        stmt = (
+            select(Course)
+            .join(Course.category)
+            .join(Course.teacher)
+            .where(Course.id == id, *public_course_conditions())
+            .options(
+                selectinload(Course.category),
+                selectinload(Course.teacher),
+                selectinload(Course.modules).selectinload(Module.lessons),
+            )
+        )
         return (await self.db.execute(stmt)).scalar_one_or_none()
 
     async def list_courses(
@@ -63,9 +69,7 @@ class CoursesRepository(ICoursesRepository):
         offset: int,
         limit: int,
     ) -> tuple[list[Course], int]:
-        stmt = select(Course).options(
-            selectinload(Course.category), selectinload(Course.teacher)
-        )
+        stmt = select(Course).options(selectinload(Course.category), selectinload(Course.teacher))
         count_stmt = select(func.count()).select_from(Course)
 
         conditions = []

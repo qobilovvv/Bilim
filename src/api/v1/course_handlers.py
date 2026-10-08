@@ -1,33 +1,36 @@
 from typing import Literal
+
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
+
 from src.models.user import User
 from src.schemas.course_schemas import (
     CourseCatalogResponse,
     CourseCreateRequest,
-    CourseUpdateRequest,
-    CourseResponse,
-    CourseListResponse,
     CourseListItemResponse,
-    ModuleCreateRequest,
-    ModuleUpdateRequest,
-    ModuleResponse,
-    LessonCreateRequest,
-    LessonUpdateRequest,
-    LessonResponse,
-    MaterialResponse,
-    HomeworkUpsertRequest,
+    CourseListResponse,
+    CourseResponse,
+    CourseUpdateRequest,
     HomeworkResponse,
+    HomeworkUpsertRequest,
+    LessonCreateRequest,
+    LessonResponse,
+    LessonUpdateRequest,
+    MaterialResponse,
+    ModuleCreateRequest,
+    ModuleResponse,
+    ModuleUpdateRequest,
 )
-from src.services.courses_scv import CoursesService, get_courses_service
-from src.services.modules_scv import ModulesService, get_modules_service
-from src.services.lessons_scv import LessonsService, get_lessons_service
-from src.services.materials_scv import MaterialsService, get_materials_service
-from src.services.homework_scv import HomeworkService, get_homework_service
 from src.security.dependencies import get_current_teacher_or_admin
+from src.services.courses_service import CoursesService, get_courses_service
+from src.services.homework_service import HomeworkService, get_homework_service
+from src.services.lessons_service import LessonsService, get_lessons_service
+from src.services.materials_service import MaterialsService, get_materials_service
+from src.services.modules_service import ModulesService, get_modules_service
 
 router = APIRouter(tags=["Courses"])
 
 # ---------- Courses ----------
+
 
 @router.get("/courses", response_model=CourseListResponse)
 async def list_courses(
@@ -39,13 +42,16 @@ async def list_courses(
     offset: int = Query(0, ge=0),
     service: CoursesService = Depends(get_courses_service),
 ):
-    items, total = await service.list_courses(category_id, type, teacher_id, search, True, limit, offset)
+    items, total = await service.list_courses(
+        category_id, type, teacher_id, search, True, limit, offset
+    )
     return CourseListResponse(
         total=total,
         limit=limit,
         offset=offset,
         result=[CourseListItemResponse.model_validate(c) for c in items],
     )
+
 
 @router.post("/courses", response_model=CourseResponse, status_code=status.HTTP_201_CREATED)
 async def create_course(
@@ -54,6 +60,7 @@ async def create_course(
     service: CoursesService = Depends(get_courses_service),
 ):
     return await service.create_course(data, current_user)
+
 
 @router.get("/courses/my-courses", response_model=CourseListResponse)
 async def list_my_courses(
@@ -78,9 +85,11 @@ async def list_my_courses(
         result=[CourseListItemResponse.model_validate(c) for c in items],
     )
 
+
 @router.get("/courses/{id}", response_model=CourseCatalogResponse)
 async def get_course(id: int, service: CoursesService = Depends(get_courses_service)):
     return await service.get_public_course(id)
+
 
 @router.get("/courses/{id}/content", response_model=CourseResponse)
 async def get_course_content(
@@ -90,6 +99,7 @@ async def get_course_content(
 ):
     return await service.get_owned_course(id, current_user)
 
+
 @router.put("/courses/{id}", response_model=CourseResponse)
 async def update_course(
     id: int,
@@ -98,6 +108,7 @@ async def update_course(
     service: CoursesService = Depends(get_courses_service),
 ):
     return await service.update_course(id, data, current_user)
+
 
 @router.put("/courses/{id}/media", response_model=CourseResponse)
 async def update_course_media(
@@ -109,6 +120,7 @@ async def update_course_media(
 ):
     return await service.update_media(id, current_user, preview_image, preview_video)
 
+
 @router.delete("/courses/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_course(
     id: int,
@@ -117,9 +129,15 @@ async def delete_course(
 ):
     await service.delete_course(id, current_user)
 
+
 # ---------- Modules ----------
 
-@router.post("/courses/{course_id}/modules", response_model=ModuleResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/courses/{course_id}/modules",
+    response_model=ModuleResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_module(
     course_id: int,
     data: ModuleCreateRequest,
@@ -127,6 +145,7 @@ async def create_module(
     service: ModulesService = Depends(get_modules_service),
 ):
     return await service.create_module(course_id, data, current_user)
+
 
 @router.put("/modules/{module_id}", response_model=ModuleResponse)
 async def update_module(
@@ -137,6 +156,7 @@ async def update_module(
 ):
     return await service.update_module(module_id, data, current_user)
 
+
 @router.delete("/modules/{module_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_module(
     module_id: int,
@@ -145,9 +165,15 @@ async def delete_module(
 ):
     await service.delete_module(module_id, current_user)
 
+
 # ---------- Lessons ----------
 
-@router.post("/modules/{module_id}/lessons", response_model=LessonResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/modules/{module_id}/lessons",
+    response_model=LessonResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_lesson(
     module_id: int,
     data: LessonCreateRequest,
@@ -155,6 +181,7 @@ async def create_lesson(
     service: LessonsService = Depends(get_lessons_service),
 ):
     return await service.create_lesson(module_id, data, current_user)
+
 
 @router.put("/lessons/{lesson_id}", response_model=LessonResponse)
 async def update_lesson(
@@ -165,6 +192,7 @@ async def update_lesson(
 ):
     return await service.update_lesson(lesson_id, data, current_user)
 
+
 @router.put("/lessons/{lesson_id}/video", response_model=LessonResponse)
 async def update_lesson_video(
     lesson_id: int,
@@ -174,6 +202,7 @@ async def update_lesson_video(
 ):
     return await service.update_video(lesson_id, video, current_user)
 
+
 @router.delete("/lessons/{lesson_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_lesson(
     lesson_id: int,
@@ -182,9 +211,15 @@ async def delete_lesson(
 ):
     await service.delete_lesson(lesson_id, current_user)
 
+
 # ---------- Materials ----------
 
-@router.post("/lessons/{lesson_id}/materials", response_model=MaterialResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/lessons/{lesson_id}/materials",
+    response_model=MaterialResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_material(
     lesson_id: int,
     name: str = Form(..., min_length=1, max_length=200),
@@ -194,6 +229,7 @@ async def create_material(
 ):
     return await service.create_material(lesson_id, name, file, current_user)
 
+
 @router.delete("/materials/{material_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_material(
     material_id: int,
@@ -202,7 +238,9 @@ async def delete_material(
 ):
     await service.delete_material(material_id, current_user)
 
+
 # ---------- Homework ----------
+
 
 @router.get("/lessons/{lesson_id}/homework", response_model=HomeworkResponse | None)
 async def get_homework(
@@ -211,6 +249,7 @@ async def get_homework(
     service: HomeworkService = Depends(get_homework_service),
 ):
     return await service.get_homework(lesson_id, current_user)
+
 
 @router.put("/lessons/{lesson_id}/homework", response_model=HomeworkResponse | None)
 async def upsert_homework(
@@ -221,6 +260,7 @@ async def upsert_homework(
 ):
     return await service.upsert_homework(lesson_id, data, current_user)
 
+
 @router.put("/lessons/{lesson_id}/homework/example-file", response_model=HomeworkResponse)
 async def upload_homework_example_file(
     lesson_id: int,
@@ -229,6 +269,7 @@ async def upload_homework_example_file(
     service: HomeworkService = Depends(get_homework_service),
 ):
     return await service.upload_example_file(lesson_id, file, current_user)
+
 
 @router.delete("/lessons/{lesson_id}/homework", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_homework(

@@ -1,13 +1,14 @@
 from datetime import datetime
 
-from sqlalchemy import select, func, or_
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+
 from src.models.user import User, UserType
 from src.repositories.interfaces import IUsersRepository
 
-class UsersRepository(IUsersRepository):
 
+class UsersRepository(IUsersRepository):
     def __init__(self, db: AsyncSession):
         self.db = db
 
@@ -17,11 +18,21 @@ class UsersRepository(IUsersRepository):
         return result.scalar_one_or_none()
 
     async def get_by_id_for_update(self, user_id: int) -> User | None:
-        stmt = select(User).where(User.id == user_id).with_for_update().execution_options(populate_existing=True)
+        stmt = (
+            select(User)
+            .where(User.id == user_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
         return (await self.db.execute(stmt)).scalar_one_or_none()
 
     async def get_by_phone_for_update(self, phone: str) -> User | None:
-        stmt = select(User).where(User.phone == phone).with_for_update().execution_options(populate_existing=True)
+        stmt = (
+            select(User)
+            .where(User.phone == phone)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
         return (await self.db.execute(stmt)).scalar_one_or_none()
 
     async def get_by_phone(self, phone: str) -> User | None:
@@ -30,10 +41,11 @@ class UsersRepository(IUsersRepository):
         return result.scalar_one_or_none()
 
     async def get_by_username(self, username: str) -> User | None:
-        stmt = select(User).options(joinedload(User.seller_profile)).where(User.username == username)
+        stmt = (
+            select(User).options(joinedload(User.seller_profile)).where(User.username == username)
+        )
         result = await self.db.execute(stmt.execution_options(populate_existing=True))
         return result.scalar_one_or_none()
-
 
     async def get_by_email(self, email: str) -> User | None:
         stmt = select(User).options(joinedload(User.seller_profile)).where(User.email == email)
@@ -73,18 +85,18 @@ class UsersRepository(IUsersRepository):
         # Status filter
         conditions = [base_filter]
         if status_filter == "active":
-            conditions.append(User.is_active == True)
-            conditions.append(User.is_blocked == False)
+            conditions.append(User.is_active.is_(True))
+            conditions.append(User.is_blocked.is_(False))
         elif status_filter == "inactive":
-            conditions.append(User.is_active == False)
-            conditions.append(User.is_blocked == False)
+            conditions.append(User.is_active.is_(False))
+            conditions.append(User.is_blocked.is_(False))
         elif status_filter == "blocked":
-            conditions.append(User.is_blocked == True)
+            conditions.append(User.is_blocked.is_(True))
 
         # Search by full name (first_name + last_name) using ILIKE
         if search:
             search_term = f"%{search}%"
-            full_name_expr = func.concat(User.first_name, ' ', func.coalesce(User.last_name, ''))
+            full_name_expr = func.concat(User.first_name, " ", func.coalesce(User.last_name, ""))
             conditions.append(full_name_expr.ilike(search_term))
 
         # Date range filter on created_at
@@ -110,4 +122,3 @@ class UsersRepository(IUsersRepository):
         users = list(result.scalars().all())
 
         return users, total
-

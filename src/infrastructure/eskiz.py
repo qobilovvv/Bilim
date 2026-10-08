@@ -19,8 +19,10 @@ class EskizClient:
     @property
     def client(self):
         if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(timeout=httpx.Timeout(10, connect=5),
-                                           limits=httpx.Limits(max_connections=20, max_keepalive_connections=10))
+            self._client = httpx.AsyncClient(
+                timeout=httpx.Timeout(10, connect=5),
+                limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+            )
         return self._client
 
     async def close(self):
@@ -35,8 +37,10 @@ class EskizClient:
                 return
             if not settings.ESKIZ_EMAIL or not settings.ESKIZ_PASSWORD:
                 raise EskizError("SMS credentials are not configured")
-            response = await self.client.post(f"{self.base_url}/auth/login", data={
-                "email": settings.ESKIZ_EMAIL, "password": settings.ESKIZ_PASSWORD})
+            response = await self.client.post(
+                f"{self.base_url}/auth/login",
+                data={"email": settings.ESKIZ_EMAIL, "password": settings.ESKIZ_PASSWORD},
+            )
             if response.is_error:
                 raise EskizError("SMS authentication failed")
             try:
@@ -52,13 +56,19 @@ class EskizClient:
             await self.authenticate()
         token = self.token
         payload = {"mobile_phone": phone, "message": text, "from": settings.ESKIZ_FROM}
-        response = await self.client.post(f"{self.base_url}/message/sms/send", json=payload,
-                                          headers={"Authorization": f"Bearer {token}"})
+        response = await self.client.post(
+            f"{self.base_url}/message/sms/send",
+            json=payload,
+            headers={"Authorization": f"Bearer {token}"},
+        )
         # Only retry explicit authentication rejection; a timed-out send may already have succeeded.
         if response.status_code == 401:
             await self.authenticate(token)
-            response = await self.client.post(f"{self.base_url}/message/sms/send", json=payload,
-                                              headers={"Authorization": f"Bearer {self.token}"})
+            response = await self.client.post(
+                f"{self.base_url}/message/sms/send",
+                json=payload,
+                headers={"Authorization": f"Bearer {self.token}"},
+            )
         if response.is_error:
             raise EskizError("SMS request failed")
         try:
@@ -67,7 +77,10 @@ class EskizClient:
             message = str(body.get("message", "")).lower()
         except (ValueError, AttributeError) as exc:
             raise EskizError("Invalid SMS provider response") from exc
-        if status not in {"success", "waiting", "queued"} and "waiting for sms provider" not in message:
+        if (
+            status not in {"success", "waiting", "queued"}
+            and "waiting for sms provider" not in message
+        ):
             raise EskizError("SMS request was rejected")
 
 

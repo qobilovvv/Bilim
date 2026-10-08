@@ -1,17 +1,19 @@
-from sqlalchemy import CheckConstraint, Column, Integer, String, DateTime, ForeignKey, Text
-from sqlalchemy.sql import func
+from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
 from src.infrastructure.database import Base
+
 
 class Module(Base):
     __tablename__ = "modules"
 
-    __table_args__ = (
-        CheckConstraint('order_index >= 0', name='ck_modules_order'),
-    )
+    __table_args__ = (CheckConstraint("order_index >= 0", name="ck_modules_order"),)
 
     id = Column(Integer, primary_key=True, index=True)
-    course_id = Column(Integer, ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True)
+    course_id = Column(
+        Integer, ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     order_index = Column(Integer, nullable=False, default=0)

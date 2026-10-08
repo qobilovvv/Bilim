@@ -8,7 +8,7 @@ from PIL import Image
 
 from src.infrastructure.config import settings
 from src.services import file_storage
-from src.services.lessons_scv import LessonsService
+from src.services.lessons_service import LessonsService
 
 
 @pytest.fixture(autouse=True)
@@ -18,7 +18,9 @@ def media_root(tmp_path, monkeypatch):
 
 
 async def test_oversized_stream_is_removed(media_root):
-    upload = SimpleNamespace(filename="large.mp4", read=AsyncMock(side_effect=[b"abc", b"def", b""]))
+    upload = SimpleNamespace(
+        filename="large.mp4", read=AsyncMock(side_effect=[b"abc", b"def", b""])
+    )
     with pytest.raises(HTTPException) as exc:
         await file_storage.save_upload_file(upload, "lessons/videos", {"mp4"}, 4)
     assert exc.value.status_code == 413
@@ -37,8 +39,12 @@ async def test_images_are_reencoded_without_client_extension(media_root):
     buffer = BytesIO()
     Image.new("RGB", (2, 2)).save(buffer, "PNG")
     buffer.seek(0)
-    path = await file_storage.save_upload_file(UploadFile(filename="picture.png", file=buffer),
-                                              "avatars", file_storage.IMAGE_EXTENSIONS, 1000)
+    path = await file_storage.save_upload_file(
+        UploadFile(filename="picture.png", file=buffer),
+        "avatars",
+        file_storage.IMAGE_EXTENSIONS,
+        1000,
+    )
     assert path.endswith(".webp")
     with Image.open(file_storage.media_path(path)) as image:
         assert image.format == "WEBP"

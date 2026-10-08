@@ -1,4 +1,5 @@
 """Retry persisted file cleanup: python -m scripts.cleanup_media."""
+
 import asyncio
 
 from src.infrastructure.database import AsyncSessionFactory, engine

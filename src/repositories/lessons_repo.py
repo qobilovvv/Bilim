@@ -1,17 +1,23 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
+
+from src.models.homework import Homework, TestHomework, TestQuestion
 from src.models.lesson import Lesson
 from src.models.module import Module
-from src.models.homework import Homework, TestHomework, TestQuestion
 from src.repositories.interfaces import ILessonsRepository
+
 
 class LessonsRepository(ILessonsRepository):
     def __init__(self, db: AsyncSession):
         self.db = db
 
     async def get_reference(self, id: int) -> Lesson | None:
-        stmt = select(Lesson).options(joinedload(Lesson.module).joinedload(Module.course)).where(Lesson.id == id)
+        stmt = (
+            select(Lesson)
+            .options(joinedload(Lesson.module).joinedload(Module.course))
+            .where(Lesson.id == id)
+        )
         return (await self.db.execute(stmt)).unique().scalar_one_or_none()
 
     async def get_by_id(self, id: int) -> Lesson | None:

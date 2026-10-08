@@ -1,10 +1,12 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
-from src.models.material import Material
+
 from src.models.lesson import Lesson
+from src.models.material import Material
 from src.models.module import Module
 from src.repositories.interfaces import IMaterialsRepository
+
 
 class MaterialsRepository(IMaterialsRepository):
     def __init__(self, db: AsyncSession):
@@ -13,7 +15,9 @@ class MaterialsRepository(IMaterialsRepository):
     async def get_by_id(self, id: int) -> Material | None:
         stmt = (
             select(Material)
-            .options(joinedload(Material.lesson).joinedload(Lesson.module).joinedload(Module.course))
+            .options(
+                joinedload(Material.lesson).joinedload(Lesson.module).joinedload(Module.course)
+            )
             .where(Material.id == id)
         )
         result = await self.db.execute(stmt)

@@ -1,18 +1,23 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
+
 from src.models.homework import Homework, TestHomework, TestQuestion
 from src.models.lesson import Lesson
 from src.models.module import Module
 from src.repositories.interfaces import IHomeworkRepository
 
+
 def _detail_options():
     return (
         joinedload(Homework.lesson).joinedload(Lesson.module).joinedload(Module.course),
-        selectinload(Homework.test_detail).selectinload(TestHomework.questions).selectinload(TestQuestion.options),
+        selectinload(Homework.test_detail)
+        .selectinload(TestHomework.questions)
+        .selectinload(TestQuestion.options),
         selectinload(Homework.text_detail),
         selectinload(Homework.file_detail),
     )
+
 
 class HomeworkRepository(IHomeworkRepository):
     def __init__(self, db: AsyncSession):

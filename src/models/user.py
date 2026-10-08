@@ -1,7 +1,18 @@
-from sqlalchemy import Index, CheckConstraint, Column, Integer, String, Boolean, DateTime, ForeignKey
-from sqlalchemy.sql import func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+)
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
 from src.infrastructure.database import Base
+
 
 class UserType:
     ADMIN = "admin"
@@ -9,16 +20,16 @@ class UserType:
     USER = "user"
     SELLER = "seller"
 
+
 class User(Base):
     __tablename__ = "users"
 
     __table_args__ = (
-        Index('ix_users_type_created', 'type', 'created_at', 'id'),
-
-        CheckConstraint("type IN ('admin', 'author', 'user', 'seller')", name='ck_users_role'),
-        CheckConstraint('length(btrim(first_name)) BETWEEN 1 AND 200', name='ck_users_first_name'),
-        CheckConstraint('auth_version >= 0', name='ck_users_auth_version'),
-        CheckConstraint("phone IS NULL OR phone ~ '^[1-9][0-9]{7,14}$'", name='ck_users_phone'),
+        Index("ix_users_type_created", "type", "created_at", "id"),
+        CheckConstraint("type IN ('admin', 'author', 'user', 'seller')", name="ck_users_role"),
+        CheckConstraint("length(btrim(first_name)) BETWEEN 1 AND 200", name="ck_users_first_name"),
+        CheckConstraint("auth_version >= 0", name="ck_users_auth_version"),
+        CheckConstraint("phone IS NULL OR phone ~ '^[1-9][0-9]{7,14}$'", name="ck_users_phone"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -44,17 +55,17 @@ class User(Base):
 
     # One-to-one relationship with SellerProfile
     seller_profile = relationship(
-        "SellerProfile",
-        back_populates="user",
-        uselist=False,
-        cascade="all, delete-orphan"
+        "SellerProfile", back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
+
 
 class SellerProfile(Base):
     __tablename__ = "seller_profiles"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False, index=True
+    )
     years_of_experience = Column(Integer, nullable=True)
     portfolio = Column(String, nullable=True)
     description = Column(String, nullable=True)

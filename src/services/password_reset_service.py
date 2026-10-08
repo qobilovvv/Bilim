@@ -20,7 +20,9 @@ logger = logging.getLogger(__name__)
 
 
 def code_digest(phone, code):
-    return hmac.new(settings.JWT_SECRET_KEY.encode(), f"reset:{phone}:{code}".encode(), hashlib.sha256).hexdigest()
+    return hmac.new(
+        settings.JWT_SECRET_KEY.encode(), f"reset:{phone}:{code}".encode(), hashlib.sha256
+    ).hexdigest()
 
 
 class PasswordResetService:
@@ -34,11 +36,18 @@ class PasswordResetService:
             return  # Same response for unknown and unavailable accounts.
         await self.reset_repo.invalidate_for_phone(phone)
         code = str(secrets.randbelow(900000) + 100000)
-        reset = PasswordResetCode(phone=phone, code=code_digest(phone, code), attempts=0,
-            expires_at=datetime.now(timezone.utc) + timedelta(minutes=5), verified=False)
+        reset = PasswordResetCode(
+            phone=phone,
+            code=code_digest(phone, code),
+            attempts=0,
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+            verified=False,
+        )
         await self.reset_repo.create_reset_code(reset)
         try:
-            await eskiz_client.send_sms(phone, f"Bilim: Password reset code: {code}. Do not share it.")
+            await eskiz_client.send_sms(
+                phone, f"Bilim: Password reset code: {code}. Do not share it."
+            )
         except Exception as exc:
             logger.warning("Password reset SMS provider failed", exc_info=False)
             raise HTTPException(502, "Verification service temporarily unavailable") from exc
@@ -66,7 +75,9 @@ class PasswordResetService:
         user = await self.users_repo.get_by_phone_for_update(phone)
         if not user or not user.is_active or user.is_blocked:
             raise HTTPException(400, "Invalid or expired password reset token")
-        reset = await self.reset_repo.get_active_token(phone, hashlib.sha256(token.encode()).hexdigest())
+        reset = await self.reset_repo.get_active_token(
+            phone, hashlib.sha256(token.encode()).hexdigest()
+        )
         if not reset:
             raise HTTPException(400, "Invalid or expired password reset token")
         user.password = await hash_password_async(new_password)

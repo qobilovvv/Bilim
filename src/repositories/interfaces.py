@@ -1,9 +1,29 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
-from src.models.user import User
-from src.models.category import Category
 
-class IUsersRepository(ABC):
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.models.category import Category
+from src.models.course import Course
+from src.models.homework import Homework
+from src.models.lesson import Lesson
+from src.models.material import Material
+from src.models.module import Module
+from src.models.password_reset import PasswordResetCode
+from src.models.user import User
+
+
+class IRepository(ABC):
+    db: AsyncSession
+
+
+class IUsersRepository(IRepository):
+    @abstractmethod
+    async def get_by_id_for_update(self, user_id: int) -> User | None: ...
+
+    @abstractmethod
+    async def get_by_phone_for_update(self, phone: str) -> User | None: ...
+
     @abstractmethod
     async def get_by_id(self, user_id: int) -> User | None: ...
 
@@ -38,7 +58,10 @@ class IUsersRepository(ABC):
     ) -> tuple[list[User], int]: ...
 
 
-class ICategoriesRepository(ABC):
+class ICategoriesRepository(IRepository):
+    @abstractmethod
+    async def lock_tree(self) -> None: ...
+
     @abstractmethod
     async def get_by_id(self, id: int) -> Category | None: ...
 
@@ -58,14 +81,15 @@ class ICategoriesRepository(ABC):
     async def delete_category(self, category: Category) -> None: ...
 
 
-from src.models.password_reset import PasswordResetCode
-
-class IPasswordResetRepository(ABC):
+class IPasswordResetRepository(IRepository):
     @abstractmethod
     async def create_reset_code(self, reset_code: PasswordResetCode) -> PasswordResetCode: ...
 
     @abstractmethod
-    async def get_active_code(self, phone: str, code: str) -> PasswordResetCode | None: ...
+    async def get_latest_challenge(self, phone: str) -> PasswordResetCode | None: ...
+
+    @abstractmethod
+    async def invalidate_for_phone(self, phone: str) -> None: ...
 
     @abstractmethod
     async def get_active_token(self, phone: str, token: str) -> PasswordResetCode | None: ...
@@ -74,13 +98,13 @@ class IPasswordResetRepository(ABC):
     async def update_reset_code(self, reset_code: PasswordResetCode) -> PasswordResetCode: ...
 
 
-from src.models.course import Course
-from src.models.module import Module
-from src.models.lesson import Lesson
-from src.models.material import Material
-from src.models.homework import Homework
+class ICoursesRepository(IRepository):
+    @abstractmethod
+    async def get_public_by_id(self, id: int) -> Course | None: ...
 
-class ICoursesRepository(ABC):
+    @abstractmethod
+    async def get_reference(self, id: int) -> Course | None: ...
+
     @abstractmethod
     async def get_by_id(self, id: int) -> Course | None: ...
 
@@ -106,7 +130,10 @@ class ICoursesRepository(ABC):
     async def delete_course(self, course: Course) -> None: ...
 
 
-class IModulesRepository(ABC):
+class IModulesRepository(IRepository):
+    @abstractmethod
+    async def get_reference(self, id: int) -> Module | None: ...
+
     @abstractmethod
     async def get_by_id(self, id: int) -> Module | None: ...
 
@@ -120,7 +147,10 @@ class IModulesRepository(ABC):
     async def delete_module(self, module: Module) -> None: ...
 
 
-class ILessonsRepository(ABC):
+class ILessonsRepository(IRepository):
+    @abstractmethod
+    async def get_reference(self, id: int) -> Lesson | None: ...
+
     @abstractmethod
     async def get_by_id(self, id: int) -> Lesson | None: ...
 
@@ -134,7 +164,7 @@ class ILessonsRepository(ABC):
     async def delete_lesson(self, lesson: Lesson) -> None: ...
 
 
-class IMaterialsRepository(ABC):
+class IMaterialsRepository(IRepository):
     @abstractmethod
     async def get_by_id(self, id: int) -> Material | None: ...
 
@@ -145,7 +175,7 @@ class IMaterialsRepository(ABC):
     async def delete_material(self, material: Material) -> None: ...
 
 
-class IHomeworkRepository(ABC):
+class IHomeworkRepository(IRepository):
     @abstractmethod
     async def get_by_lesson_id(self, lesson_id: int) -> Homework | None: ...
 

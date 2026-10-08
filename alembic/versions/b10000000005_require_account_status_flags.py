@@ -1,6 +1,8 @@
 """Remove ambiguous NULL account status flags."""
-from alembic import op
+
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "b10000000005"
 down_revision = "b10000000004"

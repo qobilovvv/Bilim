@@ -1,9 +1,12 @@
-from typing import Annotated, Literal
-from pydantic import BaseModel, ConfigDict, Field, model_validator
-from src.schemas.validation import RequestModel, PatchModel, Name, LongText, PositiveId
 from datetime import datetime
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from src.schemas.validation import LongText, Name, PatchModel, PositiveId, RequestModel
 
 # ---------- Brief nested references ----------
+
 
 class TeacherBrief(BaseModel):
     id: int
@@ -13,11 +16,13 @@ class TeacherBrief(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class CategoryBrief(BaseModel):
     id: int
     path: str
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class TeacherModerationInfo(BaseModel):
     id: int
@@ -28,7 +33,9 @@ class TeacherModerationInfo(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 # ---------- Materials ----------
+
 
 class MaterialResponse(BaseModel):
     id: int
@@ -39,11 +46,14 @@ class MaterialResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 # ---------- Homework ----------
+
 
 class TestQuestionOptionInput(RequestModel):
     text: Name
     is_correct: bool = False
+
 
 class TestQuestionInput(RequestModel):
     text: LongText = Field(min_length=1)
@@ -56,6 +66,7 @@ class TestQuestionInput(RequestModel):
             raise ValueError("Each question needs a correct option")
         return self
 
+
 class TestQuestionOptionResponse(BaseModel):
     id: int
     text: str
@@ -63,6 +74,7 @@ class TestQuestionOptionResponse(BaseModel):
     order_index: int
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class TestQuestionResponse(BaseModel):
     id: int
@@ -73,12 +85,14 @@ class TestQuestionResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class TestHomeworkResponse(BaseModel):
     timer_minutes: int | None = None
     pass_ball: int
     questions: list[TestQuestionResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class TextHomeworkResponse(BaseModel):
     deadline_days: int
@@ -88,6 +102,7 @@ class TextHomeworkResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class FileHomeworkResponse(BaseModel):
     deadline_days: int
     file_formats: list[str]
@@ -95,6 +110,7 @@ class FileHomeworkResponse(BaseModel):
     example_file: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class HomeworkBaseRequest(RequestModel):
     name: Name | None = None
@@ -125,7 +141,9 @@ class TextHomeworkRequest(HomeworkBaseRequest):
 class FileHomeworkRequest(HomeworkBaseRequest):
     type: Literal["file"]
     deadline_days: int = Field(ge=2, le=8)
-    file_formats: list[Annotated[str, Field(pattern=r"^\.?[a-z0-9]{1,10}$")]] = Field(min_length=1, max_length=20)
+    file_formats: list[Annotated[str, Field(pattern=r"^\.?[a-z0-9]{1,10}$")]] = Field(
+        min_length=1, max_length=20
+    )
     max_file_size_mb: int = Field(ge=1, le=100)
 
 
@@ -137,6 +155,7 @@ HomeworkUpsertRequest = Annotated[
     TestHomeworkRequest | TextHomeworkRequest | FileHomeworkRequest | NoHomeworkRequest,
     Field(discriminator="type"),
 ]
+
 
 class HomeworkResponse(BaseModel):
     id: int
@@ -152,18 +171,22 @@ class HomeworkResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 # ---------- Lessons ----------
+
 
 class LessonCreateRequest(RequestModel):
     name: Name
     description: LongText | None = None
     order_index: int = Field(default=0, ge=0, le=100000)
 
+
 class LessonUpdateRequest(PatchModel):
     nullable_fields = {"description"}
     name: Name | None = None
     description: LongText | None = None
     order_index: int | None = Field(default=None, ge=0, le=100000)
+
 
 class LessonResponse(BaseModel):
     id: int
@@ -179,18 +202,22 @@ class LessonResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 # ---------- Modules ----------
+
 
 class ModuleCreateRequest(RequestModel):
     name: Name
     description: LongText | None = None
     order_index: int = Field(default=0, ge=0, le=100000)
 
+
 class ModuleUpdateRequest(PatchModel):
     nullable_fields = {"description"}
     name: Name | None = None
     description: LongText | None = None
     order_index: int | None = Field(default=None, ge=0, le=100000)
+
 
 class ModuleResponse(BaseModel):
     id: int
@@ -204,7 +231,9 @@ class ModuleResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 # ---------- Courses ----------
+
 
 class CourseCreateRequest(RequestModel):
     name: Name
@@ -212,6 +241,7 @@ class CourseCreateRequest(RequestModel):
     price: int = Field(default=0, ge=0, le=2147483647)
     type: Literal["foundation", "middle", "senior"]
     about_teacher: LongText | None = None
+
 
 class CourseUpdateRequest(PatchModel):
     nullable_fields = {"about_teacher"}
@@ -222,6 +252,7 @@ class CourseUpdateRequest(PatchModel):
     type: Literal["foundation", "middle", "senior"] | None = None
     about_teacher: LongText | None = None
     is_active: bool | None = None
+
 
 class CourseListItemResponse(BaseModel):
     id: int
@@ -236,11 +267,13 @@ class CourseListItemResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class CourseListResponse(BaseModel):
     total: int
     limit: int
     offset: int
     result: list[CourseListItemResponse]
+
 
 class CourseModerationListItemResponse(BaseModel):
     id: int
@@ -255,11 +288,13 @@ class CourseModerationListItemResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class CourseModerationListResponse(BaseModel):
     total: int
     limit: int
     offset: int
     result: list[CourseModerationListItemResponse]
+
 
 class CourseResponse(BaseModel):
     id: int

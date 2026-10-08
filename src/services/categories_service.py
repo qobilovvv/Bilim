@@ -1,25 +1,28 @@
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.infrastructure.database import get_db_session
 from src.models.category import Category
 from src.repositories.categories_repo import CategoriesRepository
+from src.repositories.interfaces import ICategoriesRepository
 from src.schemas.category_schemas import CategoryCreateRequest, CategoryUpdateRequest
 
+
 class CategoriesService:
-    def __init__(self, repo: CategoriesRepository):
+    def __init__(self, repo: ICategoriesRepository):
         self.repo = repo
 
     async def create_category(self, data: CategoryCreateRequest) -> Category:
         await self.repo.lock_tree()
         # Normalize path to ensure it starts with / and is clean
         clean_path = "/" + data.path.strip("/")
-        
+
         # Check uniqueness of the path
         existing = await self.repo.get_by_path(clean_path)
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Category path '{clean_path}' already exists"
+                detail=f"Category path '{clean_path}' already exists",
             )
 
         level = 1
@@ -27,13 +30,12 @@ class CategoriesService:
             parent = await self.repo.get_by_id(data.parent_id)
             if not parent:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Parent category not found"
+                    status_code=status.HTTP_400_BAD_REQUEST, detail="Parent category not found"
                 )
             if parent.parent_id is not None:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot nest categories below level 2 (max depth exceeded)"
+                    detail="Cannot nest categories below level 2 (max depth exceeded)",
                 )
             level = 2
 
@@ -42,7 +44,7 @@ class CategoriesService:
             path=clean_path,
             parent_id=data.parent_id,
             level=level,
-            is_active=data.is_active
+            is_active=data.is_active,
         )
         return await self.repo.create_category(new_cat)
 
@@ -53,10 +55,7 @@ class CategoriesService:
         await self.repo.lock_tree()
         category = await self.repo.get_by_id(id)
         if not category:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Category not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
 
         # Update path
         if data.path is not None:
@@ -66,7 +65,7 @@ class CategoriesService:
                 if existing:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Category path '{clean_path}' already exists"
+                        detail=f"Category path '{clean_path}' already exists",
                     )
                 category.path = clean_path
 
@@ -75,23 +74,24 @@ class CategoriesService:
             if data.parent_id == category.id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="A category cannot be its own parent"
+                    detail="A category cannot be its own parent",
                 )
-            
+
             if data.parent_id != category.parent_id:
                 parent = await self.repo.get_by_id(data.parent_id)
                 if not parent:
                     raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Parent category not found"
+                        status_code=status.HTTP_400_BAD_REQUEST, detail="Parent category not found"
                     )
                 if parent.parent_id is not None:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Cannot nest categories below level 2 (max depth exceeded)"
+                        detail="Cannot nest categories below level 2 (max depth exceeded)",
                     )
                 if category.subcategories:
-                    raise HTTPException(400, "A category with children must remain at the root level")
+                    raise HTTPException(
+                        400, "A category with children must remain at the root level"
+                    )
                 category.parent_id = data.parent_id
                 category.level = 2
         elif "parent_id" in data.model_fields_set and data.parent_id is None:
@@ -111,12 +111,12 @@ class CategoriesService:
         await self.repo.lock_tree()
         category = await self.repo.get_by_id(id)
         if not category:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Category not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
         await self.repo.delete_category(category)
 
-async def get_categories_service(db: AsyncSession = Depends(get_db_session, scope="function")) -> CategoriesService:
+
+async def get_categories_service(
+    db: AsyncSession = Depends(get_db_session, scope="function"),
+) -> CategoriesService:
     repo = CategoriesRepository(db)
     return CategoriesService(repo)

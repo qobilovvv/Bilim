@@ -1,10 +1,12 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
-from src.models.module import Module
-from src.models.lesson import Lesson
+
 from src.models.homework import Homework, TestHomework, TestQuestion
+from src.models.lesson import Lesson
+from src.models.module import Module
 from src.repositories.interfaces import IModulesRepository
+
 
 class ModulesRepository(IModulesRepository):
     def __init__(self, db: AsyncSession):
@@ -25,8 +27,12 @@ class ModulesRepository(IModulesRepository):
                 .selectinload(Homework.test_detail)
                 .selectinload(TestHomework.questions)
                 .selectinload(TestQuestion.options),
-                selectinload(Module.lessons).selectinload(Lesson.homework).selectinload(Homework.text_detail),
-                selectinload(Module.lessons).selectinload(Lesson.homework).selectinload(Homework.file_detail),
+                selectinload(Module.lessons)
+                .selectinload(Lesson.homework)
+                .selectinload(Homework.text_detail),
+                selectinload(Module.lessons)
+                .selectinload(Lesson.homework)
+                .selectinload(Homework.file_detail),
             )
             .where(Module.id == id)
         )

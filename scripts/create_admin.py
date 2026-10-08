@@ -1,11 +1,14 @@
+import argparse
 import asyncio
 import sys
-import argparse
 from getpass import getpass
+
+from sqlalchemy import select
+
 from src.infrastructure.database import AsyncSessionFactory
 from src.models.user import User, UserType
 from src.security.passwords import hash_password
-from sqlalchemy import select
+
 
 async def main():
     parser = argparse.ArgumentParser(description="Create a new admin user.")
@@ -58,7 +61,9 @@ async def main():
             res = await session.execute(stmt)
             existing = res.scalar_one_or_none()
             if existing:
-                print(f"Error: A user with username '{username}' already exists (type: {existing.type}).")
+                print(
+                    f"Error: A user with username '{username}' already exists (type: {existing.type})."
+                )
                 sys.exit(1)
 
             # Check if email already exists
@@ -80,15 +85,18 @@ async def main():
                 password=hashed,
                 type=UserType.ADMIN,
                 is_active=True,
-                is_superuser=True
+                is_superuser=True,
             )
             session.add(admin_user)
             await session.commit()
-            print(f"Success: Admin user created successfully (ID: {admin_user.id}, Username: {username}).")
+            print(
+                f"Success: Admin user created successfully (ID: {admin_user.id}, Username: {username})."
+            )
         except Exception as e:
             print(f"Database error: {e}")
             await session.rollback()
             sys.exit(1)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

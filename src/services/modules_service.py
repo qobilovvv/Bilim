@@ -1,20 +1,25 @@
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.infrastructure.database import get_db_session
 from src.models.module import Module
 from src.models.user import User
-from src.repositories.modules_repo import ModulesRepository
 from src.repositories.courses_repo import CoursesRepository
+from src.repositories.interfaces import ICoursesRepository, IModulesRepository
+from src.repositories.modules_repo import ModulesRepository
 from src.schemas.course_schemas import ModuleCreateRequest, ModuleUpdateRequest
 from src.services.course_permissions import check_course_permission
-from src.services.file_storage import queue_media_cleanup, module_media_paths
+from src.services.file_storage import module_media_paths, queue_media_cleanup
+
 
 class ModulesService:
-    def __init__(self, repo: ModulesRepository, courses_repo: CoursesRepository):
+    def __init__(self, repo: IModulesRepository, courses_repo: ICoursesRepository):
         self.repo = repo
         self.courses_repo = courses_repo
 
-    async def create_module(self, course_id: int, data: ModuleCreateRequest, current_user: User) -> Module:
+    async def create_module(
+        self, course_id: int, data: ModuleCreateRequest, current_user: User
+    ) -> Module:
         course = await self.courses_repo.get_reference(course_id)
         if not course:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
@@ -28,14 +33,20 @@ class ModulesService:
         )
         return await self.repo.create_module(module)
 
-    async def _get_owned_module(self, module_id: int, current_user: User, full: bool = False) -> Module:
-        module = await (self.repo.get_by_id(module_id) if full else self.repo.get_reference(module_id))
+    async def _get_owned_module(
+        self, module_id: int, current_user: User, full: bool = False
+    ) -> Module:
+        module = await (
+            self.repo.get_by_id(module_id) if full else self.repo.get_reference(module_id)
+        )
         if not module:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Module not found")
         check_course_permission(module.course, current_user)
         return module
 
-    async def update_module(self, module_id: int, data: ModuleUpdateRequest, current_user: User) -> Module:
+    async def update_module(
+        self, module_id: int, data: ModuleUpdateRequest, current_user: User
+    ) -> Module:
         module = await self._get_owned_module(module_id, current_user)
 
         if data.name is not None:
@@ -52,5 +63,8 @@ class ModulesService:
         await queue_media_cleanup(self.repo.db, module_media_paths(module))
         await self.repo.delete_module(module)
 
-async def get_modules_service(db: AsyncSession = Depends(get_db_session, scope="function")) -> ModulesService:
+
+async def get_modules_service(
+    db: AsyncSession = Depends(get_db_session, scope="function"),
+) -> ModulesService:
     return ModulesService(ModulesRepository(db), CoursesRepository(db))

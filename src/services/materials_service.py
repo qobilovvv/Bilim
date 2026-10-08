@@ -1,24 +1,42 @@
 from fastapi import Depends, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.infrastructure.database import get_db_session
 from src.models.material import Material
 from src.models.user import User
-from src.repositories.materials_repo import MaterialsRepository
+from src.repositories.interfaces import ILessonsRepository, IMaterialsRepository
 from src.repositories.lessons_repo import LessonsRepository
+from src.repositories.materials_repo import MaterialsRepository
 from src.services.course_permissions import check_course_permission
-from src.services.file_storage import stage_upload, queue_media_cleanup, course_media_paths, lesson_media_paths
+from src.services.file_storage import (
+    queue_media_cleanup,
+    stage_upload,
+)
 
 MATERIAL_EXTENSIONS = {
-    "pdf", "ppt", "pptx", "doc", "docx", "xls", "xlsx", "csv", "zip", "rar", "txt"
+    "pdf",
+    "ppt",
+    "pptx",
+    "doc",
+    "docx",
+    "xls",
+    "xlsx",
+    "csv",
+    "zip",
+    "rar",
+    "txt",
 }
 MAX_MATERIAL_SIZE = 100 * 1024 * 1024
 
+
 class MaterialsService:
-    def __init__(self, repo: MaterialsRepository, lessons_repo: LessonsRepository):
+    def __init__(self, repo: IMaterialsRepository, lessons_repo: ILessonsRepository):
         self.repo = repo
         self.lessons_repo = lessons_repo
 
-    async def create_material(self, lesson_id: int, name: str, file: UploadFile, current_user: User) -> Material:
+    async def create_material(
+        self, lesson_id: int, name: str, file: UploadFile, current_user: User
+    ) -> Material:
         name = name.strip()
         if not name:
             raise HTTPException(400, "Material name cannot be blank")
@@ -27,7 +45,9 @@ class MaterialsService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lesson not found")
         check_course_permission(lesson.module.course, current_user)
 
-        file_path = await stage_upload(self.repo.db, file, "lessons/materials", MATERIAL_EXTENSIONS, MAX_MATERIAL_SIZE)
+        file_path = await stage_upload(
+            self.repo.db, file, "lessons/materials", MATERIAL_EXTENSIONS, MAX_MATERIAL_SIZE
+        )
         material = Material(lesson_id=lesson_id, name=name, file=file_path)
         return await self.repo.create_material(material)
 
@@ -39,5 +59,8 @@ class MaterialsService:
         await queue_media_cleanup(self.repo.db, [material.file])
         await self.repo.delete_material(material)
 
-async def get_materials_service(db: AsyncSession = Depends(get_db_session, scope="function")) -> MaterialsService:
+
+async def get_materials_service(
+    db: AsyncSession = Depends(get_db_session, scope="function"),
+) -> MaterialsService:
     return MaterialsService(MaterialsRepository(db), LessonsRepository(db))

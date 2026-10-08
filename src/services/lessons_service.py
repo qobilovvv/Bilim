@@ -1,23 +1,32 @@
 from fastapi import Depends, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.infrastructure.database import get_db_session
 from src.models.lesson import Lesson
 from src.models.user import User
+from src.repositories.interfaces import ILessonsRepository, IModulesRepository
 from src.repositories.lessons_repo import LessonsRepository
 from src.repositories.modules_repo import ModulesRepository
 from src.schemas.course_schemas import LessonCreateRequest, LessonUpdateRequest
 from src.services.course_permissions import check_course_permission
-from src.services.file_storage import stage_upload, queue_media_cleanup, course_media_paths, lesson_media_paths
+from src.services.file_storage import (
+    lesson_media_paths,
+    queue_media_cleanup,
+    stage_upload,
+)
 
 VIDEO_EXTENSIONS = {"mp4", "mov", "webm", "mkv"}
 MAX_VIDEO_SIZE = 500 * 1024 * 1024
 
+
 class LessonsService:
-    def __init__(self, repo: LessonsRepository, modules_repo: ModulesRepository):
+    def __init__(self, repo: ILessonsRepository, modules_repo: IModulesRepository):
         self.repo = repo
         self.modules_repo = modules_repo
 
-    async def create_lesson(self, module_id: int, data: LessonCreateRequest, current_user: User) -> Lesson:
+    async def create_lesson(
+        self, module_id: int, data: LessonCreateRequest, current_user: User
+    ) -> Lesson:
         module = await self.modules_repo.get_reference(module_id)
         if not module:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Module not found")
@@ -31,14 +40,20 @@ class LessonsService:
         )
         return await self.repo.create_lesson(lesson)
 
-    async def _get_owned_lesson(self, lesson_id: int, current_user: User, full: bool = False) -> Lesson:
-        lesson = await (self.repo.get_by_id(lesson_id) if full else self.repo.get_reference(lesson_id))
+    async def _get_owned_lesson(
+        self, lesson_id: int, current_user: User, full: bool = False
+    ) -> Lesson:
+        lesson = await (
+            self.repo.get_by_id(lesson_id) if full else self.repo.get_reference(lesson_id)
+        )
         if not lesson:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lesson not found")
         check_course_permission(lesson.module.course, current_user)
         return lesson
 
-    async def update_lesson(self, lesson_id: int, data: LessonUpdateRequest, current_user: User) -> Lesson:
+    async def update_lesson(
+        self, lesson_id: int, data: LessonUpdateRequest, current_user: User
+    ) -> Lesson:
         lesson = await self._get_owned_lesson(lesson_id, current_user)
 
         if data.name is not None:
@@ -52,7 +67,9 @@ class LessonsService:
 
     async def update_video(self, lesson_id: int, video: UploadFile, current_user: User) -> Lesson:
         lesson = await self._get_owned_lesson(lesson_id, current_user)
-        lesson.video = await stage_upload(self.repo.db, video, "lessons/videos", VIDEO_EXTENSIONS, MAX_VIDEO_SIZE, lesson.video)
+        lesson.video = await stage_upload(
+            self.repo.db, video, "lessons/videos", VIDEO_EXTENSIONS, MAX_VIDEO_SIZE, lesson.video
+        )
         return await self.repo.update_lesson(lesson)
 
     async def delete_lesson(self, lesson_id: int, current_user: User) -> None:
@@ -60,5 +77,8 @@ class LessonsService:
         await queue_media_cleanup(self.repo.db, lesson_media_paths(lesson))
         await self.repo.delete_lesson(lesson)
 
-async def get_lessons_service(db: AsyncSession = Depends(get_db_session, scope="function")) -> LessonsService:
+
+async def get_lessons_service(
+    db: AsyncSession = Depends(get_db_session, scope="function"),
+) -> LessonsService:
     return LessonsService(LessonsRepository(db), ModulesRepository(db))

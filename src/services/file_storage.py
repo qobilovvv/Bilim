@@ -31,18 +31,29 @@ def _reencode_image(path: Path) -> None:
         with warnings.catch_warnings():
             warnings.simplefilter("error", Image.DecompressionBombWarning)
             with Image.open(path) as image:
-                if image.format not in {"JPEG", "PNG", "WEBP"} or image.width * image.height > 20_000_000:
+                if (
+                    image.format not in {"JPEG", "PNG", "WEBP"}
+                    or image.width * image.height > 20_000_000
+                ):
                     raise ValueError("Unsupported or oversized image")
                 image.load()
                 image.convert("RGB").save(path, format="WEBP", quality=85)
-    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError,
-            Image.DecompressionBombWarning) as exc:
+    except (
+        UnidentifiedImageError,
+        OSError,
+        ValueError,
+        Image.DecompressionBombError,
+        Image.DecompressionBombWarning,
+    ) as exc:
         raise HTTPException(400, "Invalid image content") from exc
 
 
-async def save_upload_file(upload: UploadFile, subdir: str,
-                           allowed_extensions: set[str] | None = None,
-                           max_size_bytes: int | None = None) -> str:
+async def save_upload_file(
+    upload: UploadFile,
+    subdir: str,
+    allowed_extensions: set[str] | None = None,
+    max_size_bytes: int | None = None,
+) -> str:
     ext = Path(upload.filename or "").suffix.lstrip(".").lower()
     if allowed_extensions is not None and ext not in allowed_extensions:
         raise HTTPException(400, "Invalid file type")
@@ -90,7 +101,12 @@ async def stage_upload(db, upload, subdir, allowed_extensions, max_size_bytes, o
 
 
 async def cleanup_pending_files(db, paths=None, limit=100):
-    query = select(MediaCleanup).order_by(MediaCleanup.created_at).limit(limit).with_for_update(skip_locked=True)
+    query = (
+        select(MediaCleanup)
+        .order_by(MediaCleanup.created_at)
+        .limit(limit)
+        .with_for_update(skip_locked=True)
+    )
     if paths is not None:
         query = query.where(MediaCleanup.path.in_(paths))
     entries = (await db.execute(query)).scalars().all()
@@ -116,5 +132,8 @@ def module_media_paths(module):
 
 
 def course_media_paths(course):
-    return [course.preview_image, course.preview_video,
-            *(path for module in course.modules for path in module_media_paths(module))]
+    return [
+        course.preview_image,
+        course.preview_video,
+        *(path for module in course.modules for path in module_media_paths(module)),
+    ]

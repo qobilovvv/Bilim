@@ -1,8 +1,10 @@
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+
 from src.models.category import Category
 from src.repositories.interfaces import ICategoriesRepository
+
 
 class CategoriesRepository(ICategoriesRepository):
     def __init__(self, db: AsyncSession):
@@ -17,18 +19,27 @@ class CategoriesRepository(ICategoriesRepository):
         return result.unique().scalar_one_or_none()
 
     async def get_by_path(self, path: str) -> Category | None:
-        stmt = select(Category).options(joinedload(Category.subcategories)).where(Category.path == path)
+        stmt = (
+            select(Category)
+            .options(joinedload(Category.subcategories))
+            .where(Category.path == path)
+        )
         result = await self.db.execute(stmt.execution_options(populate_existing=True))
         return result.unique().scalar_one_or_none()
 
-
     async def list_categories(self, active_only: bool = True) -> list[Category]:
         # Return Level 1 categories with their nested subcategories
-        stmt = select(Category).options(joinedload(Category.subcategories)).where(Category.parent_id.is_(None))
+        stmt = (
+            select(Category)
+            .options(joinedload(Category.subcategories))
+            .where(Category.parent_id.is_(None))
+        )
         if active_only:
             stmt = stmt.where(Category.is_active.is_(True))
         if active_only:
-            stmt = stmt.options(joinedload(Category.subcategories.and_(Category.is_active.is_(True))))
+            stmt = stmt.options(
+                joinedload(Category.subcategories.and_(Category.is_active.is_(True)))
+            )
         stmt = stmt.order_by(Category.id).execution_options(populate_existing=True)
         result = await self.db.execute(stmt.execution_options(populate_existing=True))
         # unique() is required when joinedload is used in async queries to avoid duplicates

@@ -1,8 +1,10 @@
-from sqlalchemy import CheckConstraint, Column, Integer, String, Boolean, DateTime, ForeignKey, Text
-from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
+from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
 from src.infrastructure.database import Base
+
 
 class HomeworkType:
     TEST = "test"
@@ -12,15 +14,22 @@ class HomeworkType:
 
     ALL = (TEST, TEXT, FILE, NONE)
 
+
 class Homework(Base):
     __tablename__ = "homeworks"
 
     __table_args__ = (
-        CheckConstraint("type IN ('test', 'text', 'file', 'none')", name='ck_homeworks_type'),
+        CheckConstraint("type IN ('test', 'text', 'file', 'none')", name="ck_homeworks_type"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    lesson_id = Column(Integer, ForeignKey("lessons.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
+    lesson_id = Column(
+        Integer,
+        ForeignKey("lessons.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
     type = Column(String, nullable=False, default=HomeworkType.NONE)
     name = Column(String, nullable=True)
     description = Column(Text, nullable=True)
@@ -39,15 +48,25 @@ class Homework(Base):
         "FileHomework", back_populates="homework", uselist=False, cascade="all, delete-orphan"
     )
 
+
 class TestHomework(Base):
     __tablename__ = "test_homeworks"
 
     __table_args__ = (
-        CheckConstraint('pass_ball >= 0 AND (timer_minutes IS NULL OR timer_minutes > 0)', name='ck_test_homeworks_values'),
+        CheckConstraint(
+            "pass_ball >= 0 AND (timer_minutes IS NULL OR timer_minutes > 0)",
+            name="ck_test_homeworks_values",
+        ),
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    homework_id = Column(Integer, ForeignKey("homeworks.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
+    homework_id = Column(
+        Integer,
+        ForeignKey("homeworks.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
     timer_minutes = Column(Integer, nullable=True)
     pass_ball = Column(Integer, nullable=False, default=0)
 
@@ -59,15 +78,18 @@ class TestHomework(Base):
         order_by="TestQuestion.order_index",
     )
 
+
 class TestQuestion(Base):
     __tablename__ = "test_questions"
 
     __table_args__ = (
-        CheckConstraint('ball >= 0 AND order_index >= 0', name='ck_test_questions_values'),
+        CheckConstraint("ball >= 0 AND order_index >= 0", name="ck_test_questions_values"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    test_homework_id = Column(Integer, ForeignKey("test_homeworks.id", ondelete="CASCADE"), nullable=False, index=True)
+    test_homework_id = Column(
+        Integer, ForeignKey("test_homeworks.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     text = Column(Text, nullable=False)
     ball = Column(Integer, nullable=False, default=0)
     order_index = Column(Integer, nullable=False, default=0)
@@ -80,30 +102,41 @@ class TestQuestion(Base):
         order_by="TestQuestionOption.order_index",
     )
 
+
 class TestQuestionOption(Base):
     __tablename__ = "test_question_options"
 
-    __table_args__ = (
-        CheckConstraint('order_index >= 0', name='ck_test_options_order'),
-    )
+    __table_args__ = (CheckConstraint("order_index >= 0", name="ck_test_options_order"),)
 
     id = Column(Integer, primary_key=True, index=True)
-    question_id = Column(Integer, ForeignKey("test_questions.id", ondelete="CASCADE"), nullable=False, index=True)
+    question_id = Column(
+        Integer, ForeignKey("test_questions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     text = Column(Text, nullable=False)
     is_correct = Column(Boolean, nullable=False, default=False)
     order_index = Column(Integer, nullable=False, default=0)
 
     question = relationship("TestQuestion", back_populates="options")
 
+
 class TextHomework(Base):
     __tablename__ = "text_homeworks"
 
     __table_args__ = (
-        CheckConstraint('deadline_days BETWEEN 2 AND 8 AND pass_ball BETWEEN 0 AND 100 AND min_words > 0', name='ck_text_homeworks_values'),
+        CheckConstraint(
+            "deadline_days BETWEEN 2 AND 8 AND pass_ball BETWEEN 0 AND 100 AND min_words > 0",
+            name="ck_text_homeworks_values",
+        ),
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    homework_id = Column(Integer, ForeignKey("homeworks.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
+    homework_id = Column(
+        Integer,
+        ForeignKey("homeworks.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
     deadline_days = Column(Integer, nullable=False)
     pass_ball = Column(Integer, nullable=False, default=0)
     min_words = Column(Integer, nullable=False, default=0)
@@ -111,15 +144,25 @@ class TextHomework(Base):
 
     homework = relationship("Homework", back_populates="text_detail")
 
+
 class FileHomework(Base):
     __tablename__ = "file_homeworks"
 
     __table_args__ = (
-        CheckConstraint('deadline_days BETWEEN 2 AND 8 AND max_file_size_mb BETWEEN 1 AND 100', name='ck_file_homeworks_values'),
+        CheckConstraint(
+            "deadline_days BETWEEN 2 AND 8 AND max_file_size_mb BETWEEN 1 AND 100",
+            name="ck_file_homeworks_values",
+        ),
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    homework_id = Column(Integer, ForeignKey("homeworks.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
+    homework_id = Column(
+        Integer,
+        ForeignKey("homeworks.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
     deadline_days = Column(Integer, nullable=False)
     file_formats = Column(JSONB, nullable=False, default=list)  # e.g. [".pdf", ".xlsx"]
     max_file_size_mb = Column(Integer, nullable=False)

@@ -1,33 +1,50 @@
 from fastapi import Depends, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.infrastructure.database import get_db_session
 from src.models.course import Course, CourseType
 from src.models.user import User, UserType
-from src.repositories.courses_repo import CoursesRepository
 from src.repositories.categories_repo import CategoriesRepository
+from src.repositories.courses_repo import CoursesRepository
+from src.repositories.interfaces import ICategoriesRepository, ICoursesRepository, IUsersRepository
 from src.repositories.users_repo import UsersRepository
 from src.schemas.course_schemas import CourseCreateRequest, CourseUpdateRequest
 from src.services.course_permissions import check_course_permission
-from src.services.file_storage import stage_upload, queue_media_cleanup, course_media_paths, lesson_media_paths
+from src.services.file_storage import (
+    course_media_paths,
+    queue_media_cleanup,
+    stage_upload,
+)
 
 IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 VIDEO_EXTENSIONS = {"mp4", "mov", "webm", "mkv"}
 MAX_IMAGE_SIZE = 5 * 1024 * 1024
 MAX_VIDEO_SIZE = 500 * 1024 * 1024
 
+
 class CoursesService:
-    def __init__(self, repo: CoursesRepository, categories_repo: CategoriesRepository, users_repo: UsersRepository):
+    def __init__(
+        self,
+        repo: ICoursesRepository,
+        categories_repo: ICategoriesRepository,
+        users_repo: IUsersRepository,
+    ):
         self.repo = repo
         self.categories_repo = categories_repo
         self.users_repo = users_repo
 
     async def create_course(self, data: CourseCreateRequest, current_user: User) -> Course:
         if data.type not in CourseType.ALL:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid type. Allowed: {CourseType.ALL}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid type. Allowed: {CourseType.ALL}",
+            )
 
         category = await self.categories_repo.get_by_id(data.category_id)
         if not category:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Category not found")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Category not found"
+            )
 
         course = Course(
             name=data.name,
@@ -49,7 +66,9 @@ class CoursesService:
         limit: int,
         offset: int,
     ) -> tuple[list[Course], int]:
-        return await self.repo.list_courses(category_id, type_filter, teacher_id, search, active_only, offset, limit)
+        return await self.repo.list_courses(
+            category_id, type_filter, teacher_id, search, active_only, offset, limit
+        )
 
     async def get_public_course(self, id: int) -> Course:
         course = await self.repo.get_public_by_id(id)
@@ -77,20 +96,35 @@ class CoursesService:
         if data.category_id is not None:
             category = await self.categories_repo.get_by_id(data.category_id)
             if not category:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Category not found")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail="Category not found"
+                )
             course.category_id = data.category_id
 
         if data.teacher_id is not None:
             if current_user.type != UserType.ADMIN:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admin can reassign the teacher")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only admin can reassign the teacher",
+                )
             teacher = await self.users_repo.get_by_id(data.teacher_id)
-            if not teacher or teacher.type != UserType.SELLER or not teacher.is_active or teacher.is_blocked:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid teacher_id")
+            if (
+                not teacher
+                or teacher.type != UserType.SELLER
+                or not teacher.is_active
+                or teacher.is_blocked
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid teacher_id"
+                )
             course.teacher_id = data.teacher_id
 
         if data.type is not None:
             if data.type not in CourseType.ALL:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid type. Allowed: {CourseType.ALL}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid type. Allowed: {CourseType.ALL}",
+                )
             course.type = data.type
 
         if data.name is not None:
@@ -117,13 +151,23 @@ class CoursesService:
         check_course_permission(course, current_user)
 
         if preview_image:
-            course.preview_image = await stage_upload(self.repo.db, 
-                preview_image, "courses/previews", IMAGE_EXTENSIONS, MAX_IMAGE_SIZE, course.preview_image
+            course.preview_image = await stage_upload(
+                self.repo.db,
+                preview_image,
+                "courses/previews",
+                IMAGE_EXTENSIONS,
+                MAX_IMAGE_SIZE,
+                course.preview_image,
             )
 
         if preview_video:
-            course.preview_video = await stage_upload(self.repo.db, 
-                preview_video, "courses/previews", VIDEO_EXTENSIONS, MAX_VIDEO_SIZE, course.preview_video
+            course.preview_video = await stage_upload(
+                self.repo.db,
+                preview_video,
+                "courses/previews",
+                VIDEO_EXTENSIONS,
+                MAX_VIDEO_SIZE,
+                course.preview_video,
             )
 
         return await self.repo.update_course(course)
@@ -134,5 +178,8 @@ class CoursesService:
         await queue_media_cleanup(self.repo.db, course_media_paths(course))
         await self.repo.delete_course(course)
 
-async def get_courses_service(db: AsyncSession = Depends(get_db_session, scope="function")) -> CoursesService:
+
+async def get_courses_service(
+    db: AsyncSession = Depends(get_db_session, scope="function"),
+) -> CoursesService:
     return CoursesService(CoursesRepository(db), CategoriesRepository(db), UsersRepository(db))

@@ -13,9 +13,9 @@ from src.models.lesson import Lesson
 from src.models.material import Material
 from src.models.module import Module
 from src.models.user import User, UserType
+from src.repositories.course_visibility import public_course_conditions
 from src.security.dependencies import get_current_user
 from src.services.file_storage import media_path
-from src.repositories.course_visibility import public_course_conditions
 
 router = APIRouter(tags=["Media"])
 optional_bearer = HTTPBearer(auto_error=False)
@@ -40,22 +40,53 @@ async def get_media(
     public = False
     ext = path.suffix.lower()
     if relative_path.startswith("avatars/") and ext in {".jpg", ".jpeg", ".png", ".webp"}:
-        public = bool((await db.execute(select(User.id).where(User.avatar == relative_path))).first())
+        public = bool(
+            (await db.execute(select(User.id).where(User.avatar == relative_path))).first()
+        )
     if relative_path.startswith("courses/previews/") and ext in {
-        ".jpg", ".jpeg", ".png", ".webp", ".mp4", ".mov", ".webm", ".mkv"
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".webp",
+        ".mp4",
+        ".mov",
+        ".webm",
+        ".mkv",
     }:
-        public = bool((await db.execute(select(Course.id).where(
-            (Course.preview_image == relative_path) | (Course.preview_video == relative_path),
-            *public_course_conditions(),
-        ))).first())
+        public = bool(
+            (
+                await db.execute(
+                    select(Course.id).where(
+                        (Course.preview_image == relative_path)
+                        | (Course.preview_video == relative_path),
+                        *public_course_conditions(),
+                    )
+                )
+            ).first()
+        )
     if not public:
         if user is None:
-            raise HTTPException(401, "Authentication required", headers={"WWW-Authenticate": "Bearer"})
+            raise HTTPException(
+                401, "Authentication required", headers={"WWW-Authenticate": "Bearer"}
+            )
         queries = [
-            select(Course.teacher_id).where((Course.preview_image == relative_path) | (Course.preview_video == relative_path)),
-            select(Course.teacher_id).join(Module).join(Lesson).where(Lesson.video == relative_path),
-            select(Course.teacher_id).join(Module).join(Lesson).join(Material).where(Material.file == relative_path),
-            select(Course.teacher_id).join(Module).join(Lesson).join(Homework).join(FileHomework)
+            select(Course.teacher_id).where(
+                (Course.preview_image == relative_path) | (Course.preview_video == relative_path)
+            ),
+            select(Course.teacher_id)
+            .join(Module)
+            .join(Lesson)
+            .where(Lesson.video == relative_path),
+            select(Course.teacher_id)
+            .join(Module)
+            .join(Lesson)
+            .join(Material)
+            .where(Material.file == relative_path),
+            select(Course.teacher_id)
+            .join(Module)
+            .join(Lesson)
+            .join(Homework)
+            .join(FileHomework)
             .where(FileHomework.example_file == relative_path),
         ]
         owners = set((await db.execute(union_all(*queries))).scalars())
@@ -64,5 +95,8 @@ async def get_media(
     if not path.is_file():
         raise HTTPException(404, "File not found")
     attachment = relative_path.startswith(("lessons/materials/", "homeworks/examples/"))
-    return FileResponse(path, filename=Path(relative_path).name if attachment else None,
-                        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"})
+    return FileResponse(
+        path,
+        filename=Path(relative_path).name if attachment else None,
+        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"},
+    )

@@ -1,7 +1,19 @@
-from sqlalchemy import Index, CheckConstraint, Column, Integer, String, Boolean, DateTime, ForeignKey, Text
-from sqlalchemy.sql import func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
 from src.infrastructure.database import Base
+
 
 class CourseType:
     FOUNDATION = "foundation"
@@ -10,22 +22,26 @@ class CourseType:
 
     ALL = (FOUNDATION, MIDDLE, SENIOR)
 
+
 class Course(Base):
     __tablename__ = "courses"
 
     __table_args__ = (
-        Index('ix_courses_teacher_created', 'teacher_id', 'created_at', 'id'),
-        Index('ix_courses_category_created', 'category_id', 'created_at', 'id'),
-        Index('ix_courses_created', 'created_at', 'id'),
-
-        CheckConstraint('price >= 0', name='ck_courses_price'),
-        CheckConstraint("type IN ('foundation', 'middle', 'senior')", name='ck_courses_type'),
+        Index("ix_courses_teacher_created", "teacher_id", "created_at", "id"),
+        Index("ix_courses_category_created", "category_id", "created_at", "id"),
+        Index("ix_courses_created", "created_at", "id"),
+        CheckConstraint("price >= 0", name="ck_courses_price"),
+        CheckConstraint("type IN ('foundation', 'middle', 'senior')", name="ck_courses_type"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
-    category_id = Column(Integer, ForeignKey("categories.id", ondelete="RESTRICT"), nullable=False, index=True)
-    teacher_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    category_id = Column(
+        Integer, ForeignKey("categories.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    teacher_id = Column(
+        Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
     price = Column(Integer, nullable=False, default=0)
     type = Column(String, nullable=False, default=CourseType.FOUNDATION)
     preview_image = Column(String, nullable=True)

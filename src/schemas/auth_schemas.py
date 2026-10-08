@@ -1,19 +1,33 @@
-from pydantic import BaseModel, ConfigDict, Field, EmailStr
-from src.schemas.validation import RequestModel, PatchModel, Phone, Name, Username, Password, LongText
 from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+from src.schemas.validation import (
+    LongText,
+    Name,
+    Password,
+    PatchModel,
+    Phone,
+    RequestModel,
+    Username,
+)
+
 
 class UserLoginRequest(RequestModel):
     phone: Phone
     password: str = Field(min_length=1, max_length=128)
 
+
 class AdminLoginRequest(RequestModel):
     username: Username
     password: str = Field(min_length=1, max_length=128)
+
 
 class UserRegisterRequest(RequestModel):
     first_name: Name
     phone: Phone
     password: Password
+
 
 class SellerProfileResponse(BaseModel):
     years_of_experience: int | None = None
@@ -21,6 +35,7 @@ class SellerProfileResponse(BaseModel):
     description: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class UserResponse(BaseModel):
     id: int
@@ -40,8 +55,16 @@ class UserResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class ProfileUpdateRequest(PatchModel):
-    nullable_fields = {"last_name", "username", "email", "years_of_experience", "portfolio", "description"}
+    nullable_fields = {
+        "last_name",
+        "username",
+        "email",
+        "years_of_experience",
+        "portfolio",
+        "description",
+    }
     first_name: Name | None = None
     last_name: Name | None = None
     phone: Phone | None = None
@@ -52,25 +75,31 @@ class ProfileUpdateRequest(PatchModel):
     portfolio: LongText | None = None
     description: LongText | None = None
 
+
 class PasswordUpdateRequest(RequestModel):
     old_password: str = Field(min_length=1, max_length=128)
     new_password: Password
+
 
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
 
+
 class AuthResponse(BaseModel):
     user: UserResponse
     tokens: TokenResponse
 
+
 class ForgotPasswordSendCodeRequest(RequestModel):
     phone: Phone
+
 
 class ForgotPasswordVerifyCodeRequest(RequestModel):
     phone: Phone
     code: str = Field(pattern=r"^[0-9]{6}$")
+
 
 class ForgotPasswordResetRequest(RequestModel):
     phone: Phone
@@ -104,7 +133,6 @@ class AdminUserUpdateRequest(PatchModel):
     email: EmailStr | None = None
     is_active: bool | None = None
     is_blocked: bool | None = None
-
 
 
 class RefreshTokenRequest(RequestModel):

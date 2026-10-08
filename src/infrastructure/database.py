@@ -1,5 +1,6 @@
 import logging
 from typing import AsyncGenerator
+
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import (
@@ -22,7 +23,7 @@ engine = create_async_engine(
     pool_size=settings.DB_POOL_SIZE,  # Number of connections to keep in the pool
     max_overflow=settings.DB_MAX_OVERFLOW,  # Additional connections beyond pool_size
     pool_recycle=3600,  # Recycle connections after 1 hour
-    connect_args={"timeout": 10, "command_timeout": 30}  # Connection timeout
+    connect_args={"timeout": 10, "command_timeout": 30},  # Connection timeout
 )
 
 # 2. Create the Async Session Maker
@@ -39,6 +40,7 @@ AsyncSessionFactory = async_sessionmaker(
 # All your domain models (e.g., in src/domain/models.py) will inherit from this.
 Base = declarative_base()
 
+
 # 4. Dependency Injection Provider
 # This generator yields a database session for each request and ensures
 # it is safely closed afterward, even if an exception occurs.
@@ -53,14 +55,18 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
         except IntegrityError as exc:
             session.info["transaction_failed"] = True
             await session.rollback()
-            raise HTTPException(status_code=409, detail="The change conflicts with an existing record or reference") from exc
+            raise HTTPException(
+                status_code=409, detail="The change conflicts with an existing record or reference"
+            ) from exc
         except BaseException:
             session.info["transaction_failed"] = True
             await session.rollback()
             raise
         finally:
             from anyio import to_thread
+
             from src.services.file_storage import cleanup_pending_files, delete_media_file
+
             # A committed file reference must never be removed by rollback cleanup.
             if session.in_transaction():
                 await session.rollback()
@@ -75,4 +81,6 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
                     await cleanup_pending_files(session, session.info["media_cleanup"])
                 except Exception:
                     await session.rollback()
-                    logging.getLogger(__name__).exception("Deferred media cleanup retained for retry")
+                    logging.getLogger(__name__).exception(
+                        "Deferred media cleanup retained for retry"
+                    )

@@ -1,7 +1,14 @@
 import re
 from typing import Annotated, ClassVar
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    model_validator,
+)
 
 
 def normalize_phone(value):
@@ -15,7 +22,12 @@ def normalize_phone(value):
 
 Phone = Annotated[str, BeforeValidator(normalize_phone)]
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
-Username = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=64, pattern=r"^[a-zA-Z0-9_.-]+$")]
+Username = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True, min_length=3, max_length=64, pattern=r"^[a-zA-Z0-9_.-]+$"
+    ),
+]
 Password = Annotated[str, Field(min_length=12, max_length=128)]
 LongText = Annotated[str, Field(max_length=20000)]
 PositiveId = Annotated[int, Field(gt=0)]
