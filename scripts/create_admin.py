@@ -3,11 +3,13 @@ import asyncio
 import sys
 from getpass import getpass
 
+from pydantic import EmailStr, TypeAdapter, ValidationError
 from sqlalchemy import select
 
 from src.infrastructure.database import AsyncSessionFactory
 from src.models.user import User, UserType
-from src.security.passwords import hash_password
+from src.schemas.validation import Name, Password, Username
+from src.security.passwords import hash_password_async
 
 
 async def main():
@@ -49,9 +51,21 @@ async def main():
             email = None
 
     if not password:
-        password = getpass("Enter admin password: ").strip()
+        password = getpass("Enter admin password: ")
     if not password:
         print("Error: Password is required.")
+        sys.exit(1)
+
+    try:
+        username = TypeAdapter(Username).validate_python(username)
+        first_name = TypeAdapter(Name).validate_python(first_name)
+        last_name = TypeAdapter(Name).validate_python(last_name) if last_name else None
+        email = str(TypeAdapter(EmailStr).validate_python(email)) if email else None
+        password = TypeAdapter(Password).validate_python(password)
+    except ValidationError:
+        print(
+            "Invalid admin details: use a 3–64 character username, nonempty name, valid email, and 12–128 character password."
+        )
         sys.exit(1)
 
     async with AsyncSessionFactory() as session:
@@ -75,7 +89,7 @@ async def main():
                     print(f"Error: A user with email '{email}' already exists.")
                     sys.exit(1)
 
-            hashed = hash_password(password)
+            hashed = await hash_password_async(password)
             admin_user = User(
                 first_name=first_name,
                 last_name=last_name,
@@ -92,8 +106,10 @@ async def main():
             print(
                 f"Success: Admin user created successfully (ID: {admin_user.id}, Username: {username})."
             )
-        except Exception as e:
-            print(f"Database error: {e}")
+        except Exception:
+            print(
+                "Admin creation failed; check database availability and unique account identifiers."
+            )
             await session.rollback()
             sys.exit(1)
 
