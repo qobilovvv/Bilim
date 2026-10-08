@@ -1,45 +1,11 @@
-# Creating Administrative Users
+# Administrator bootstrap
 
-To create an administrative user, you can use the built-in admin creation script `scripts/create_admin.py`.
+Apply migrations first. From the repository root:
 
-This script supports both **command-line flags** and an **interactive mode** (which prompts you securely for inputs, hiding the password as you type).
-
----
-
-## 1. Running inside Docker (Recommended)
-
-If you are running the project using Docker Compose, you can run the script inside the active `api` container.
-
-### Option A: Interactive Mode (Prompts for inputs)
-Run the following command, and the terminal will prompt you for the details:
 ```bash
-docker compose -f docker/docker-compose.yml run --rm api python -m scripts.create_admin
+docker compose --env-file .env -f docker/docker-compose.prod.yml exec api python -m scripts.create_admin
 ```
 
-### Option B: Command Line Arguments
-You can supply all required fields directly as arguments:
-```bash
-docker compose -f docker/docker-compose.yml run --rm api python -m scripts.create_admin --username "admin" --password "secureadminpass" --first-name "System Admin"
-```
+The command prompts for username, name, optional surname/email, and a hidden password. Username must have 3–64 letters/digits/underscore/dot/hyphen; password must have 12–128 characters. API validation also applies to account details. Duplicate identifiers are rejected. Prefer the interactive password prompt over command arguments to avoid shell history/process exposure.
 
----
-
-## 2. Running Locally (On Host Machine)
-
-If you are running the database and application directly on your host machine:
-
-1. **Activate virtual environment**:
-   ```bash
-   source .venv/bin/activate
-   ```
-2. **Run the script**:
-   * **Interactive mode**:
-     ```bash
-     python -m scripts.create_admin
-     ```
-   * **Arguments mode**:
-     ```bash
-     python -m scripts.create_admin --username "admin" --password "secureadminpass" --first-name "System Admin"
-     ```
-
-*Note: The script reads the database configuration directly from your `.env` file.*
+Log in through `POST /api/v1/admin/login` using username/password. Administrator endpoints use `/api/v1/moderation`; use a Bearer access token. Blocking/inactivating accounts revokes their sessions. Administrator accounts cannot be disabled/deleted through ordinary user moderation endpoints.

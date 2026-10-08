@@ -1,182 +1,42 @@
-# VPS Setup & Nginx Deployment Guide
+# Production deployment
 
-This guide explains how to set up a brand-new Ubuntu VPS from scratch to host the project, configure Nginx as a reverse proxy with automated SSL (Let's Encrypt), and deploy using the GitHub Actions CI/CD pipeline.
+Run commands from the repository root. The production image runs as UID 10001 (`app`), includes Alembic migrations, and publishes the API only on localhost. PostgreSQL has no host port. Use a dedicated deployment account, Docker Compose v2 with `--wait` support, and an HTTPS reverse proxy.
 
----
+## Prepare configuration and data
 
-## Part 1: Initial VPS Configuration
+1. Copy `.env.example` to `.env`, set permissions to 600, generate an independent JWT secret, and fill PostgreSQL/Eskiz credentials. URL-encode special characters in database credentials in `DATABASE_URL`. Use `postgres-db` as the database hostname inside Compose.
+2. Set production CORS origins to exact frontend origins. Set `TRUSTED_PROXY_IPS` to the reverse proxy source IP as seen by the container; a host proxy commonly reaches it through the Docker bridge gateway. Do not trust arbitrary forwarded headers. Authentication throttles use the resulting client IP.
+3. Preserve existing media and PostgreSQL volumes. Existing media volumes created by root need a one-time ownership adjustment to UID/GID 10001 before starting this image. Inspect the actual named volume and back it up before changing permissions. Never recreate data volumes as an upgrade shortcut.
+4. Take and verify database and media backups. Clean invalid historical data identified by new constraints before migrating: duplicate normalized phones, invalid roles/types, negative prices/orders, empty names, and invalid homework values. Legacy NULL account flags become conservative inactive/non-superuser/unblocked values. Review affected accounts.
 
-Connect to your VPS as `root` via SSH:
 ```bash
-ssh root@YOUR_SERVER_IP
+docker compose --env-file .env -f docker/docker-compose.prod.yml build api
+docker compose --env-file .env -f docker/docker-compose.prod.yml up -d --wait postgres-db
+docker compose --env-file .env -f docker/docker-compose.prod.yml run --rm --no-deps api alembic upgrade head
+docker compose --env-file .env -f docker/docker-compose.prod.yml up -d --no-build --wait --wait-timeout 120 api
+curl --fail http://127.0.0.1:8000/readyz
 ```
 
-### 1. Update the System
-```bash
-apt update && apt upgrade -y
-```
+A migration failure stops deployment. Investigate and correct the specific legacy records; migrations do not invent identities or silently alter prices. Existing tokens are invalid after the session migration, so clients must log in again. Refresh is `POST /api/v1/refresh`; logout revokes all account sessions. Frontends must adapt to the catalog/content split, draft publishing, stricter request validation, and authenticated private media. JSON profile updates support explicit clearing of nullable fields; multipart updates treat omitted fields as unchanged.
 
-### 2. Install Docker & Docker Compose
-The easiest way is using the official Docker install script:
-```bash
-curl -fsSL https://get.docker.com -o get-docker.sh
-sh get-docker.sh
-```
+## Proxy and monitoring
 
-Verify that Docker is installed:
-```bash
-docker --version
-docker compose version
-```
+Proxy to `127.0.0.1:8000`, preserve Host, set `X-Forwarded-Proto`, and set a trustworthy client forwarding header. Configure `client_max_body_size 520m` (the API video limit is 500 MiB plus multipart overhead), suitable upload timeouts, and `proxy_request_buffering off` where streamed uploads are intended. TLS certificates, firewall rules, and DNS are deployment responsibilities.
 
-### 3. Configure the Firewall
-Ensure that SSH, HTTP, and HTTPS ports are open:
-```bash
-ufw allow OpenSSH
-ufw allow 80/tcp
-ufw allow 443/tcp
-ufw enable
-```
+Collect structured application logs and monitor `/readyz`, 5xx rates, latency, disk usage, PostgreSQL connections, and cleanup backlog. Requests include `X-Request-ID`; route templates avoid logging user paths, bodies, credentials, or query strings. Administrator-only `/api/v1/moderation/metrics` returns process-local counters; scrape/aggregate externally for multi-process or historical monitoring. Set alerts in the infrastructure monitoring system.
 
----
+## CI release gate
 
-## Part 2: Folder Structure & Git Setup
+Pull requests and pushes to main/master run lint, formatting, targeted type checks, PostgreSQL integration tests, and Docker build/start checks. Deployment runs only for a tested push to master. It fetches and checks out the exact tested SHA and refuses tracked local changes instead of resetting them.
 
-We will place the application in `/var/www/bilim`.
+Configure production environment secrets `SERVER_HOST`, `SERVER_USER`, `SERVER_SSH_KEY`, and `SERVER_FINGERPRINT` (verify the SSH server fingerprint independently). Use a dedicated server account. Configure environment protection/branch rules for your organization. No workflow or production deployment was executed during this local hardening work.
 
-### 1. Create the Project Directory
-```bash
-mkdir -p /var/www/bilim
-```
+## Backups, restore, and maintenance
 
-### 2. Set Up SSH Key for GitHub Actions
-GitHub Actions needs access to run commands on your server.
-1. **On your local machine or server**, generate a new SSH Key:
-   ```bash
-   ssh-keygen -t ed25519 -C "github-actions-deploy"
-   ```
-   *(Press Enter to save in the default path and leave the passphrase empty).*
-2. Add the **public key** (`id_ed25519.pub`) to the server's authorized keys:
-   ```bash
-   cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
-   chmod 600 ~/.ssh/authorized_keys
-   chmod 700 ~/.ssh
-   ```
-3. Copy the **private key** (`id_ed25519`). You will add this key to your GitHub repository secrets:
-   * Go to **GitHub Repository** -> **Settings** -> **Secrets and variables** -> **Actions**.
-   * Create a new repository secret:
-     * **Name**: `SERVER_SSH_KEY`
-     * **Value**: Paste the entire contents of the private key (`id_ed25519`).
-   * Create another repository secret:
-     * **Name**: `SERVER_HOST`
-     * **Value**: Your server's public IP address.
+With writes quiesced, run `BACKUP_DIR=/private/backup/location bash scripts/backup.sh`. It writes a PostgreSQL custom-format dump and media archive with restrictive permissions. Store encrypted copies off-host, define retention, and routinely restore into a separate environment. To restore: stop API writes, restore the dump with `pg_restore` into an appropriate empty database, restore media with UID/GID 10001 ownership, run migration/status checks, then verify readiness and representative content before reopening traffic. Test these steps with your volume layout; never rehearse on production.
 
-### 3. Initialize Git Repository on the Server
-```bash
-cd /var/www/bilim
-git init
-git remote add origin YOUR_GITHUB_REPOSITORY_SSH_OR_HTTPS_URL
-```
+Schedule `docker compose --env-file .env -f docker/docker-compose.prod.yml exec -T api python -m scripts.cleanup_media` periodically. Each invocation processes up to 100 queued paths, with failed deletions retained for retry. Increase schedule frequency if the backlog grows.
 
----
+Inventory legacy orphan media with `python -m scripts.reconcile_media` inside the API container. It defaults to a dry run and ignores files younger than 24 hours. Pause uploads/mutations and inspect the report before `--queue`; cleanup_media then performs deletion. Back up media before enabling reconciliation. Session/reset tables may need retention pruning as deployment volume grows; expired records do not grant access.
 
-## Part 3: Setting Up Nginx Reverse Proxy
-
-To route incoming traffic on ports 80/443 to your backend container running on port 8000, install and configure Nginx on the host VPS.
-
-### 1. Install Nginx
-```bash
-sudo apt update
-sudo apt install nginx -y
-```
-
-### 2. Install Certbot for Let's Encrypt SSL
-```bash
-sudo apt install certbot python3-certbot-nginx -y
-```
-
-### 3. Create Nginx Site Configuration
-Create a configuration file for your backend API:
-```bash
-sudo nano /etc/nginx/sites-available/backend
-```
-
-Paste the following configuration, replacing `api.yourdomain.com` with your actual domain or IP:
-```nginx
-server {
-    listen 80;
-    server_name api.yourdomain.com;
-
-    client_max_body_size 100M;
-
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-### 4. Enable Configuration and Restart Nginx
-Enable the site by symlinking it to the `sites-enabled` directory:
-```bash
-sudo ln -s /etc/nginx/sites-available/backend /etc/nginx/sites-enabled/
-```
-
-Test Nginx configuration:
-```bash
-sudo nginx -t
-```
-
-If the test is successful, reload Nginx:
-```bash
-sudo systemctl reload nginx
-```
-
----
-
-## Part 4: Configure Let's Encrypt SSL
-
-Run Certbot to automatically fetch and configure the SSL certificate for your domain:
-```bash
-sudo certbot --nginx -d api.yourdomain.com
-```
-Follow the interactive prompts to complete the setup. Certbot will automatically rewrite the Nginx configuration to route HTTPS traffic securely and redirect HTTP to HTTPS.
-
----
-
-## Part 5: Bootstrapping the Backend
-
-Before running the GitHub Actions workflow for the first time:
-
-1. **Pull the code manually on the server**:
-   ```bash
-   cd /var/www/bilim
-   git fetch origin master
-   git reset --hard origin/master
-   ```
-2. **Create the production environment file**:
-   Create `/var/www/bilim/.env` with your production variables:
-   ```bash
-   POSTGRES_DB=app
-   POSTGRES_USER=app
-   POSTGRES_PASSWORD=your_secure_db_password
-   DATABASE_URL=postgresql+asyncpg://app:your_secure_db_password@postgres-db:5432/app
-   JWT_SECRET_KEY=your_super_secret_jwt_key
-   # Add any other config fields required by config.py
-   ```
-3. **Run your migrations**:
-   ```bash
-   docker compose -f docker/docker-compose.prod.yml run --rm api alembic upgrade head
-   ```
-4. **Boot the project**:
-   ```bash
-   docker compose -f docker/docker-compose.prod.yml up -d --build
-   ```
-
-Subsequent push commits to the `master` branch will trigger the GitHub Actions workflow to auto-pull, rebuild, and hot-reload the containers!
+Before application rollback, check schema compatibility. Restore a verified backup when necessary; do not automatically downgrade populated production schemas. See the migration guide.
