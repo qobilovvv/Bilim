@@ -332,3 +332,24 @@ async def test_failed_file_cleanup_is_persisted_and_retryable(
 
 def test_migration_metadata_has_no_pending_changes():
     command.check(Config("alembic.ini"))
+
+
+async def test_refresh_rotation_serializes_concurrent_requests(client):
+    tokens, _ = await create_teacher(client)
+    responses = await asyncio.gather(
+        client.post("/api/v1/refresh", json={"refresh_token": tokens["tokens"]["refresh_token"]}),
+        client.post("/api/v1/refresh", json={"refresh_token": tokens["tokens"]["refresh_token"]}),
+    )
+    assert sorted(response.status_code for response in responses) == [200, 401]
+
+
+async def test_duplicate_registration_rolls_back_cleanly(client, db_factory):
+    data = {"phone": "998901234567", "password": "long-password-123", "first_name": "Teacher"}
+    responses = await asyncio.gather(
+        client.post("/api/v1/seller/register", json=data),
+        client.post("/api/v1/seller/register", json=data),
+    )
+    assert sorted(response.status_code for response in responses) == [201, 409]
+    async with db_factory() as db:
+        assert await db.scalar(text("SELECT count(*) FROM users")) == 1
+        assert await db.scalar(text("SELECT count(*) FROM seller_profiles")) == 1
