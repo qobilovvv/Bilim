@@ -43,7 +43,7 @@ class LessonsService:
 
         if data.name is not None:
             lesson.name = data.name
-        if data.description is not None:
+        if "description" in data.model_fields_set:
             lesson.description = data.description
         if data.order_index is not None:
             lesson.order_index = data.order_index

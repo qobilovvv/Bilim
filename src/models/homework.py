@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
+from sqlalchemy import CheckConstraint, Column, Integer, String, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
@@ -14,6 +14,10 @@ class HomeworkType:
 
 class Homework(Base):
     __tablename__ = "homeworks"
+
+    __table_args__ = (
+        CheckConstraint("type IN ('test', 'text', 'file', 'none')", name='ck_homeworks_type'),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     lesson_id = Column(Integer, ForeignKey("lessons.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
@@ -38,6 +42,10 @@ class Homework(Base):
 class TestHomework(Base):
     __tablename__ = "test_homeworks"
 
+    __table_args__ = (
+        CheckConstraint('pass_ball >= 0 AND (timer_minutes IS NULL OR timer_minutes > 0)', name='ck_test_homeworks_values'),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
     homework_id = Column(Integer, ForeignKey("homeworks.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
     timer_minutes = Column(Integer, nullable=True)
@@ -53,6 +61,10 @@ class TestHomework(Base):
 
 class TestQuestion(Base):
     __tablename__ = "test_questions"
+
+    __table_args__ = (
+        CheckConstraint('ball >= 0 AND order_index >= 0', name='ck_test_questions_values'),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     test_homework_id = Column(Integer, ForeignKey("test_homeworks.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -71,6 +83,10 @@ class TestQuestion(Base):
 class TestQuestionOption(Base):
     __tablename__ = "test_question_options"
 
+    __table_args__ = (
+        CheckConstraint('order_index >= 0', name='ck_test_options_order'),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
     question_id = Column(Integer, ForeignKey("test_questions.id", ondelete="CASCADE"), nullable=False, index=True)
     text = Column(Text, nullable=False)
@@ -81,6 +97,10 @@ class TestQuestionOption(Base):
 
 class TextHomework(Base):
     __tablename__ = "text_homeworks"
+
+    __table_args__ = (
+        CheckConstraint('deadline_days BETWEEN 2 AND 8 AND pass_ball BETWEEN 0 AND 100 AND min_words > 0', name='ck_text_homeworks_values'),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     homework_id = Column(Integer, ForeignKey("homeworks.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
@@ -93,6 +113,10 @@ class TextHomework(Base):
 
 class FileHomework(Base):
     __tablename__ = "file_homeworks"
+
+    __table_args__ = (
+        CheckConstraint('deadline_days BETWEEN 2 AND 8 AND max_file_size_mb BETWEEN 1 AND 100', name='ck_file_homeworks_values'),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     homework_id = Column(Integer, ForeignKey("homeworks.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)

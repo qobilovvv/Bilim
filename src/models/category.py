@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import CheckConstraint, Column, Integer, String, Boolean, DateTime, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
@@ -6,6 +6,10 @@ from src.infrastructure.database import Base
 
 class Category(Base):
     __tablename__ = "categories"
+
+    __table_args__ = (
+        CheckConstraint('(parent_id IS NULL AND level = 1) OR (parent_id IS NOT NULL AND level = 2 AND parent_id <> id)', name='ck_categories_hierarchy'),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(JSONB, nullable=False)  # Localized dictionary: {"ru": "...", "uz": "...", "en": "..."}

@@ -1,3 +1,4 @@
+from typing import Literal
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from src.models.user import User
 from src.schemas.course_schemas import (
@@ -31,9 +32,9 @@ router = APIRouter(tags=["Courses"])
 @router.get("/courses", response_model=CourseListResponse)
 async def list_courses(
     category_id: int | None = Query(None),
-    type: str | None = Query(None),
+    type: Literal["foundation", "middle", "senior"] | None = Query(None),
     teacher_id: int | None = Query(None),
-    search: str | None = Query(None),
+    search: str | None = Query(None, max_length=100),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     service: CoursesService = Depends(get_courses_service),
@@ -186,7 +187,7 @@ async def delete_lesson(
 @router.post("/lessons/{lesson_id}/materials", response_model=MaterialResponse, status_code=status.HTTP_201_CREATED)
 async def create_material(
     lesson_id: int,
-    name: str = Form(...),
+    name: str = Form(..., min_length=1, max_length=200),
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_teacher_or_admin),
     service: MaterialsService = Depends(get_materials_service),

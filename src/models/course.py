@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
+from sqlalchemy import CheckConstraint, Column, Integer, String, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from src.infrastructure.database import Base
@@ -13,6 +13,11 @@ class CourseType:
 class Course(Base):
     __tablename__ = "courses"
 
+    __table_args__ = (
+        CheckConstraint('price >= 0', name='ck_courses_price'),
+        CheckConstraint("type IN ('foundation', 'middle', 'senior')", name='ck_courses_type'),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     category_id = Column(Integer, ForeignKey("categories.id", ondelete="RESTRICT"), nullable=False, index=True)
@@ -22,7 +27,7 @@ class Course(Base):
     preview_image = Column(String, nullable=True)
     preview_video = Column(String, nullable=True)
     about_teacher = Column(Text, nullable=True)
-    is_active = Column(Boolean, default=True, nullable=False)
+    is_active = Column(Boolean, default=False, nullable=False, server_default="false")
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

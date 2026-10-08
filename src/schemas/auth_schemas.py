@@ -1,18 +1,19 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, EmailStr
+from src.schemas.validation import RequestModel, PatchModel, Phone, Name, Username, Password, LongText
 from datetime import datetime
 
-class UserLoginRequest(BaseModel):
-    phone: str
-    password: str
+class UserLoginRequest(RequestModel):
+    phone: Phone
+    password: str = Field(min_length=1, max_length=128)
 
-class AdminLoginRequest(BaseModel):
-    username: str
-    password: str
+class AdminLoginRequest(RequestModel):
+    username: Username
+    password: str = Field(min_length=1, max_length=128)
 
-class UserRegisterRequest(BaseModel):
-    first_name: str
-    phone: str
-    password: str
+class UserRegisterRequest(RequestModel):
+    first_name: Name
+    phone: Phone
+    password: Password
 
 class SellerProfileResponse(BaseModel):
     years_of_experience: int | None = None
@@ -39,20 +40,21 @@ class UserResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-class ProfileUpdateRequest(BaseModel):
-    first_name: str | None = None
-    last_name: str | None = None
-    phone: str | None = None
-    username: str | None = None
-    email: str | None = None
+class ProfileUpdateRequest(PatchModel):
+    nullable_fields = {"last_name", "username", "email", "years_of_experience", "portfolio", "description"}
+    first_name: Name | None = None
+    last_name: Name | None = None
+    phone: Phone | None = None
+    username: Username | None = None
+    email: EmailStr | None = None
     # Seller specific fields
-    years_of_experience: int | None = None
-    portfolio: str | None = None
-    description: str | None = None
+    years_of_experience: int | None = Field(default=None, ge=0, le=100)
+    portfolio: LongText | None = None
+    description: LongText | None = None
 
-class PasswordUpdateRequest(BaseModel):
-    old_password: str
-    new_password: str
+class PasswordUpdateRequest(RequestModel):
+    old_password: str = Field(min_length=1, max_length=128)
+    new_password: Password
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -63,17 +65,17 @@ class AuthResponse(BaseModel):
     user: UserResponse
     tokens: TokenResponse
 
-class ForgotPasswordSendCodeRequest(BaseModel):
-    phone: str
+class ForgotPasswordSendCodeRequest(RequestModel):
+    phone: Phone
 
-class ForgotPasswordVerifyCodeRequest(BaseModel):
-    phone: str
-    code: str
+class ForgotPasswordVerifyCodeRequest(RequestModel):
+    phone: Phone
+    code: str = Field(pattern=r"^[0-9]{6}$")
 
-class ForgotPasswordResetRequest(BaseModel):
-    phone: str
-    token: str
-    new_password: str
+class ForgotPasswordResetRequest(RequestModel):
+    phone: Phone
+    token: str = Field(min_length=32, max_length=128)
+    new_password: Password
 
 
 class UserListItemResponse(BaseModel):
@@ -94,15 +96,16 @@ class UserListResponse(BaseModel):
     result: list[UserListItemResponse]
 
 
-class AdminUserUpdateRequest(BaseModel):
-    first_name: str | None = None
-    last_name: str | None = None
-    phone: str | None = None
-    email: str | None = None
+class AdminUserUpdateRequest(PatchModel):
+    nullable_fields = {"last_name", "email"}
+    first_name: Name | None = None
+    last_name: Name | None = None
+    phone: Phone | None = None
+    email: EmailStr | None = None
     is_active: bool | None = None
     is_blocked: bool | None = None
 
 
 
-class RefreshTokenRequest(BaseModel):
-    refresh_token: str
+class RefreshTokenRequest(RequestModel):
+    refresh_token: str = Field(min_length=1, max_length=4096)

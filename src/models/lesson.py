@@ -1,10 +1,14 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
+from sqlalchemy import CheckConstraint, Column, Integer, String, DateTime, ForeignKey, Text
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from src.infrastructure.database import Base
 
 class Lesson(Base):
     __tablename__ = "lessons"
+
+    __table_args__ = (
+        CheckConstraint('order_index >= 0', name='ck_lessons_order'),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     module_id = Column(Integer, ForeignKey("modules.id", ondelete="CASCADE"), nullable=False, index=True)

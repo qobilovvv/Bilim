@@ -7,7 +7,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.exc import IntegrityError
 
 from src.infrastructure import database
-from src.schemas.course_schemas import HomeworkUpsertRequest
+from src.schemas.course_schemas import TestHomeworkRequest as HomeworkRequest
 from src.services.homework_scv import HomeworkService
 
 
@@ -16,7 +16,7 @@ async def test_invalid_replacement_preserves_homework():
     service = HomeworkService(repo, None)
     service._get_owned_lesson = AsyncMock()
     with pytest.raises(HTTPException):
-        await service.upsert_homework(1, HomeworkUpsertRequest(type="test"), None)
+        await service.upsert_homework(1, HomeworkRequest.model_construct(type="test", pass_ball=None, questions=None), None)
     repo.delete_homework.assert_not_awaited()
 
 

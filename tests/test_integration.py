@@ -102,7 +102,7 @@ async def test_invalid_homework_replacement_preserves_saved_assignment(client, d
     login, _ = await create_teacher(client)
     _, lesson_id, headers = await create_course(client, db_factory, login["tokens"])
     valid = {"type": "test", "pass_ball": 1, "questions": [{"text": "Question", "ball": 1,
-                "options": [{"text": "Answer", "is_correct": True}]}]}
+                "options": [{"text": "Answer", "is_correct": True}, {"text": "Wrong", "is_correct": False}]}]}
     path = f"/api/v1/lessons/{lesson_id}/homework"
     saved = await client.put(path, headers=headers, json=valid)
     assert saved.status_code == 200, saved.text

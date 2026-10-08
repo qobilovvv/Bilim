@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import CheckConstraint, Column, Integer, String, Boolean, DateTime, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from src.infrastructure.database import Base
@@ -11,6 +11,13 @@ class UserType:
 
 class User(Base):
     __tablename__ = "users"
+
+    __table_args__ = (
+        CheckConstraint("type IN ('admin', 'author', 'user', 'seller')", name='ck_users_role'),
+        CheckConstraint('length(btrim(first_name)) BETWEEN 1 AND 200', name='ck_users_first_name'),
+        CheckConstraint('auth_version >= 0', name='ck_users_auth_version'),
+        CheckConstraint("phone IS NULL OR phone ~ '^[1-9][0-9]{7,14}$'", name='ck_users_phone'),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     first_name = Column(String, nullable=False)

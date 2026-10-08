@@ -1,4 +1,6 @@
-from pydantic import BaseModel, ConfigDict
+from typing import Annotated, Literal
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from src.schemas.validation import RequestModel, PatchModel, Name, LongText, PositiveId
 from datetime import datetime
 
 # ---------- Brief nested references ----------
@@ -39,14 +41,20 @@ class MaterialResponse(BaseModel):
 
 # ---------- Homework ----------
 
-class TestQuestionOptionInput(BaseModel):
-    text: str
+class TestQuestionOptionInput(RequestModel):
+    text: Name
     is_correct: bool = False
 
-class TestQuestionInput(BaseModel):
-    text: str
-    ball: int
-    options: list[TestQuestionOptionInput]
+class TestQuestionInput(RequestModel):
+    text: LongText = Field(min_length=1)
+    ball: int = Field(ge=1, le=1000)
+    options: list[TestQuestionOptionInput] = Field(min_length=2, max_length=20)
+
+    @model_validator(mode="after")
+    def require_correct_option(self):
+        if not any(option.is_correct for option in self.options):
+            raise ValueError("Each question needs a correct option")
+        return self
 
 class TestQuestionOptionResponse(BaseModel):
     id: int
@@ -88,24 +96,47 @@ class FileHomeworkResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-class HomeworkUpsertRequest(BaseModel):
-    type: str  # "test" | "text" | "file" | "none"
-    name: str | None = None
-    description: str | None = None
+class HomeworkBaseRequest(RequestModel):
+    name: Name | None = None
+    description: LongText | None = None
 
-    # test fields
-    timer_minutes: int | None = None
-    pass_ball: int | None = None
-    questions: list[TestQuestionInput] | None = None
 
-    # text fields
-    deadline_days: int | None = None
-    min_words: int | None = None
-    grading_criteria: dict[str, str] | None = None
+class TestHomeworkRequest(HomeworkBaseRequest):
+    type: Literal["test"]
+    timer_minutes: int | None = Field(default=None, ge=1, le=1440)
+    pass_ball: int = Field(ge=1)
+    questions: list[TestQuestionInput] = Field(min_length=1, max_length=200)
 
-    # file fields
-    file_formats: list[str] | None = None
-    max_file_size_mb: int | None = None
+    @model_validator(mode="after")
+    def attainable_score(self):
+        if self.pass_ball > sum(question.ball for question in self.questions):
+            raise ValueError("Pass score exceeds the available points")
+        return self
+
+
+class TextHomeworkRequest(HomeworkBaseRequest):
+    type: Literal["text"]
+    deadline_days: int = Field(ge=2, le=8)
+    pass_ball: int = Field(ge=0, le=100)
+    min_words: int = Field(ge=1, le=100000)
+    grading_criteria: dict[Name, Name] | None = Field(default=None, max_length=50)
+
+
+class FileHomeworkRequest(HomeworkBaseRequest):
+    type: Literal["file"]
+    deadline_days: int = Field(ge=2, le=8)
+    file_formats: list[Annotated[str, Field(pattern=r"^\.?[a-z0-9]{1,10}$")]] = Field(min_length=1, max_length=20)
+    max_file_size_mb: int = Field(ge=1, le=100)
+
+
+class NoHomeworkRequest(HomeworkBaseRequest):
+    type: Literal["none"]
+
+
+HomeworkUpsertRequest = Annotated[
+    TestHomeworkRequest | TextHomeworkRequest | FileHomeworkRequest | NoHomeworkRequest,
+    Field(discriminator="type"),
+]
 
 class HomeworkResponse(BaseModel):
     id: int
@@ -123,15 +154,16 @@ class HomeworkResponse(BaseModel):
 
 # ---------- Lessons ----------
 
-class LessonCreateRequest(BaseModel):
-    name: str
-    description: str | None = None
-    order_index: int = 0
+class LessonCreateRequest(RequestModel):
+    name: Name
+    description: LongText | None = None
+    order_index: int = Field(default=0, ge=0, le=100000)
 
-class LessonUpdateRequest(BaseModel):
-    name: str | None = None
-    description: str | None = None
-    order_index: int | None = None
+class LessonUpdateRequest(PatchModel):
+    nullable_fields = {"description"}
+    name: Name | None = None
+    description: LongText | None = None
+    order_index: int | None = Field(default=None, ge=0, le=100000)
 
 class LessonResponse(BaseModel):
     id: int
@@ -149,15 +181,16 @@ class LessonResponse(BaseModel):
 
 # ---------- Modules ----------
 
-class ModuleCreateRequest(BaseModel):
-    name: str
-    description: str | None = None
-    order_index: int = 0
+class ModuleCreateRequest(RequestModel):
+    name: Name
+    description: LongText | None = None
+    order_index: int = Field(default=0, ge=0, le=100000)
 
-class ModuleUpdateRequest(BaseModel):
-    name: str | None = None
-    description: str | None = None
-    order_index: int | None = None
+class ModuleUpdateRequest(PatchModel):
+    nullable_fields = {"description"}
+    name: Name | None = None
+    description: LongText | None = None
+    order_index: int | None = Field(default=None, ge=0, le=100000)
 
 class ModuleResponse(BaseModel):
     id: int
@@ -173,20 +206,21 @@ class ModuleResponse(BaseModel):
 
 # ---------- Courses ----------
 
-class CourseCreateRequest(BaseModel):
-    name: str
-    category_id: int
-    price: int = 0
-    type: str
-    about_teacher: str | None = None
+class CourseCreateRequest(RequestModel):
+    name: Name
+    category_id: PositiveId
+    price: int = Field(default=0, ge=0, le=2147483647)
+    type: Literal["foundation", "middle", "senior"]
+    about_teacher: LongText | None = None
 
-class CourseUpdateRequest(BaseModel):
-    name: str | None = None
-    category_id: int | None = None
-    teacher_id: int | None = None
-    price: int | None = None
-    type: str | None = None
-    about_teacher: str | None = None
+class CourseUpdateRequest(PatchModel):
+    nullable_fields = {"about_teacher"}
+    name: Name | None = None
+    category_id: PositiveId | None = None
+    teacher_id: PositiveId | None = None
+    price: int | None = Field(default=None, ge=0, le=2147483647)
+    type: Literal["foundation", "middle", "senior"] | None = None
+    about_teacher: LongText | None = None
     is_active: bool | None = None
 
 class CourseListItemResponse(BaseModel):

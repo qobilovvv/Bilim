@@ -19,6 +19,9 @@ class MaterialsService:
         self.lessons_repo = lessons_repo
 
     async def create_material(self, lesson_id: int, name: str, file: UploadFile, current_user: User) -> Material:
+        name = name.strip()
+        if not name:
+            raise HTTPException(400, "Material name cannot be blank")
         lesson = await self.lessons_repo.get_by_id(lesson_id)
         if not lesson:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lesson not found")

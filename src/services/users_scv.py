@@ -72,7 +72,7 @@ class UsersService:
         existing_user = await self.repo.get_by_phone(data.phone)
         if existing_user:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_409_CONFLICT,
                 detail="Phone number already registered"
             )
 
@@ -93,7 +93,7 @@ class UsersService:
         existing_user = await self.repo.get_by_phone(data.phone)
         if existing_user:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_409_CONFLICT,
                 detail="Phone number already registered"
             )
 
@@ -202,67 +202,24 @@ class UsersService:
                 detail="User not found"
             )
 
-        # Update phone if provided and changed
-        if data.phone is not None and data.phone != user.phone:
-            existing_phone = await self.repo.get_by_phone(data.phone)
-            if existing_phone:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Phone number already registered by another user"
-                )
-            user.phone = data.phone
-
-        # Update username if provided and changed
-        if data.username is not None and data.username != user.username:
-            username_val = data.username.strip() if data.username else None
-            if username_val:
-                existing_username = await self.repo.get_by_username(username_val)
-                if existing_username:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Username already registered by another user"
-                    )
-                user.username = username_val
-            else:
-                user.username = None
-
-        # Update email if provided and changed
-        if data.email is not None and data.email != user.email:
-            email_val = data.email.strip() if data.email else None
-            if email_val:
-                existing_email = await self.repo.get_by_email(email_val)
-                if existing_email:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Email already registered by another user"
-                    )
-                user.email = email_val
-            else:
-                user.email = None
-
-        if data.first_name is not None:
-            user.first_name = data.first_name
-
-        if data.last_name is not None:
-            user.last_name = data.last_name.strip() if data.last_name else None
-
-        # Update seller specific profile fields if type is SELLER
-        if user.type == UserType.SELLER:
-            if not user.seller_profile:
-                user.seller_profile = SellerProfile(
-                    years_of_experience=None,
-                    portfolio=None,
-                    description=None
-                )
-            
-            if data.years_of_experience is not None:
-                user.seller_profile.years_of_experience = data.years_of_experience
-                
-            if data.portfolio is not None:
-                user.seller_profile.portfolio = data.portfolio.strip() if data.portfolio else None
-                
-            if data.description is not None:
-                user.seller_profile.description = data.description.strip() if data.description else None
+        updates = data.model_dump(exclude_unset=True)
+        for field in ("phone", "username", "email"):
+            if field not in updates or updates[field] == getattr(user, field):
+                continue
+            value = updates[field]
+            if field == "username" and user.type == UserType.ADMIN and value is None:
+                raise HTTPException(400, "Administrators must keep a username")
+            if value is not None and await getattr(self.repo, f"get_by_{field}")(value):
+                raise HTTPException(409, f"{field} is already in use")
+        for field in ("first_name", "last_name", "phone", "username", "email"):
+            if field in updates:
+                setattr(user, field, updates[field])
+        seller_fields = {"years_of_experience", "portfolio", "description"}
+        if user.type == UserType.SELLER and seller_fields.intersection(updates):
+            if user.seller_profile is None:
+                user.seller_profile = SellerProfile()
+            for field in seller_fields.intersection(updates):
+                setattr(user.seller_profile, field, updates[field])
 
         if avatar:
             user.avatar = await stage_upload(self.repo.db, avatar, "avatars", IMAGE_EXTENSIONS,
@@ -348,34 +305,19 @@ class UsersService:
                 detail="User not found"
             )
 
-        # Allow admin to update specific fields
-        if data.first_name is not None:
-            user.first_name = data.first_name
-        
-        if data.last_name is not None:
-            user.last_name = data.last_name.strip() if data.last_name else None
-
-        if data.phone is not None and data.phone != user.phone:
-            existing = await self.repo.get_by_phone(data.phone)
-            if existing:
-                raise HTTPException(status_code=400, detail="Phone number already in use")
-            user.phone = data.phone
-
-        if data.email is not None and data.email != user.email:
-            email_val = data.email.strip() if data.email else None
-            if email_val:
-                existing = await self.repo.get_by_email(email_val)
-                if existing:
-                    raise HTTPException(status_code=400, detail="Email already in use")
-                user.email = email_val
-            else:
-                user.email = None
-
-        if data.is_active is not None:
-            user.is_active = data.is_active
-
-        if data.is_blocked is not None:
-            user.is_blocked = data.is_blocked
+        updates = data.model_dump(exclude_unset=True)
+        if user.type == UserType.ADMIN and (updates.get("is_blocked") or updates.get("is_active") is False):
+            raise HTTPException(409, "Administrator accounts cannot be disabled through user moderation")
+        for field in ("phone", "email"):
+            value = updates.get(field)
+            if value is not None and value != getattr(user, field):
+                if await getattr(self.repo, f"get_by_{field}")(value):
+                    raise HTTPException(409, f"{field} is already in use")
+        for field, value in updates.items():
+            setattr(user, field, value)
+        if updates.get("is_blocked") or updates.get("is_active") is False:
+            user.auth_version += 1
+            await SessionsRepository(self.repo.db).revoke_all(user.id)
 
         return await self.repo.update_user(user)
 
@@ -387,8 +329,8 @@ class UsersService:
                 detail="User not found"
             )
         
-        # Optionally, check if user has dependencies that shouldn't be deleted,
-        # but the DB constraints will handle cascades usually.
+        if user.type == UserType.ADMIN:
+            raise HTTPException(409, "Administrator accounts cannot be deleted through user moderation")
         await queue_media_cleanup(self.repo.db, [user.avatar])
         await self.repo.delete_user(user)
 

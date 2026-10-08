@@ -1,21 +1,23 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+from src.schemas.validation import RequestModel, PatchModel, Name, PositiveId
 from datetime import datetime
 
-class LocalizedString(BaseModel):
-    ru: str
-    uz: str
-    en: str
+class LocalizedString(RequestModel):
+    ru: Name
+    uz: Name
+    en: Name
 
-class CategoryCreateRequest(BaseModel):
+class CategoryCreateRequest(RequestModel):
     name: LocalizedString
-    path: str
-    parent_id: int | None = None
+    path: str = Field(min_length=1, max_length=200, pattern=r"^/?[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_-]+)*/?$")
+    parent_id: PositiveId | None = None
     is_active: bool = True
 
-class CategoryUpdateRequest(BaseModel):
+class CategoryUpdateRequest(PatchModel):
+    nullable_fields = {"parent_id"}
     name: LocalizedString | None = None
-    path: str | None = None
-    parent_id: int | None = None
+    path: str | None = Field(default=None, min_length=1, max_length=200, pattern=r"^/?[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_-]+)*/?$")
+    parent_id: PositiveId | None = None
     is_active: bool | None = None
 
 class SubcategoryResponse(BaseModel):

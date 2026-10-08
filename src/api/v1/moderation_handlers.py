@@ -1,6 +1,7 @@
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone
+from typing import Literal
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import HTTPException, APIRouter, Depends, Query, status
 from src.models.user import User, UserType
 from src.schemas.auth_schemas import UserListResponse, UserResponse, AdminUserUpdateRequest
 from src.schemas.course_schemas import CourseModerationListResponse, CourseModerationListItemResponse
@@ -13,8 +14,8 @@ router = APIRouter(prefix="/moderation", tags=["moderation"])
 
 @router.get("/users", response_model=UserListResponse)
 async def list_users(
-    status_filter: str = Query("all", alias="status", description="Filter: all, active, inactive, blocked"),
-    search: str | None = Query(None, description="Search by full name"),
+    status_filter: Literal["all", "active", "inactive", "blocked"] = Query("all", alias="status", description="Filter: all, active, inactive, blocked"),
+    search: str | None = Query(None, max_length=100, description="Search by full name"),
     date_from: date | None = Query(None, description="Filter users created from this date"),
     date_to: date | None = Query(None, description="Filter users created until this date"),
     limit: int = Query(20, ge=1, le=100),
@@ -23,9 +24,11 @@ async def list_users(
     service: UsersService = Depends(get_users_service),
 ):
     # Convert date to datetime for range filtering
-    dt_from = datetime.combine(date_from, time.min) if date_from else None
-    dt_to = datetime.combine(date_to, time.max) if date_to else None
+    dt_from = datetime.combine(date_from, time.min, tzinfo=timezone.utc) if date_from else None
+    dt_to = datetime.combine(date_to, time.max, tzinfo=timezone.utc) if date_to else None
 
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(400, "date_from must not exceed date_to")
     filter_value = status_filter if status_filter != "all" else None
     items, total = await service.list_users(
         status_filter=filter_value,
@@ -41,8 +44,8 @@ async def list_users(
 
 @router.get("/teachers", response_model=UserListResponse)
 async def list_teachers(
-    status_filter: str = Query("all", alias="status", description="Filter: all, active, inactive, blocked"),
-    search: str | None = Query(None, description="Search by full name"),
+    status_filter: Literal["all", "active", "inactive", "blocked"] = Query("all", alias="status", description="Filter: all, active, inactive, blocked"),
+    search: str | None = Query(None, max_length=100, description="Search by full name"),
     date_from: date | None = Query(None, description="Filter teachers created from this date"),
     date_to: date | None = Query(None, description="Filter teachers created until this date"),
     limit: int = Query(20, ge=1, le=100),
@@ -50,9 +53,11 @@ async def list_teachers(
     current_admin: User = Depends(get_current_admin),
     service: UsersService = Depends(get_users_service),
 ):
-    dt_from = datetime.combine(date_from, time.min) if date_from else None
-    dt_to = datetime.combine(date_to, time.max) if date_to else None
+    dt_from = datetime.combine(date_from, time.min, tzinfo=timezone.utc) if date_from else None
+    dt_to = datetime.combine(date_to, time.max, tzinfo=timezone.utc) if date_to else None
 
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(400, "date_from must not exceed date_to")
     filter_value = status_filter if status_filter != "all" else None
     items, total = await service.list_users(
         status_filter=filter_value,
@@ -69,7 +74,7 @@ async def list_teachers(
 @router.get("/courses", response_model=CourseModerationListResponse)
 async def list_courses_for_moderation(
     category_id: int | None = Query(None),
-    type: str | None = Query(None),
+    type: Literal["foundation", "middle", "senior"] | None = Query(None),
     teacher_id: int | None = Query(None),
     search: str | None = Query(None),
     active_only: bool = Query(False, description="Set true to only show active courses"),

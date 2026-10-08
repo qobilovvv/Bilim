@@ -82,7 +82,7 @@ class CoursesService:
             if current_user.type != UserType.ADMIN:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admin can reassign the teacher")
             teacher = await self.users_repo.get_by_id(data.teacher_id)
-            if not teacher or teacher.type != UserType.SELLER:
+            if not teacher or teacher.type != UserType.SELLER or not teacher.is_active or teacher.is_blocked:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid teacher_id")
             course.teacher_id = data.teacher_id
 
@@ -95,7 +95,7 @@ class CoursesService:
             course.name = data.name
         if data.price is not None:
             course.price = data.price
-        if data.about_teacher is not None:
+        if "about_teacher" in data.model_fields_set:
             course.about_teacher = data.about_teacher
         if data.is_active is not None:
             course.is_active = data.is_active

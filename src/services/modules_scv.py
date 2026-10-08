@@ -40,7 +40,7 @@ class ModulesService:
 
         if data.name is not None:
             module.name = data.name
-        if data.description is not None:
+        if "description" in data.model_fields_set:
             module.description = data.description
         if data.order_index is not None:
             module.order_index = data.order_index

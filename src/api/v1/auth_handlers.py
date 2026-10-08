@@ -1,4 +1,6 @@
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 from src.security.rate_limits import rate_limit_auth
 from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 from src.models.user import User
@@ -91,16 +93,14 @@ def profile_update_form(
     portfolio: str | None = Form(None),
     description: str | None = Form(None),
 ) -> ProfileUpdateRequest:
-    return ProfileUpdateRequest(
-        first_name=first_name,
-        last_name=last_name,
-        phone=phone,
-        username=username,
-        email=email,
-        years_of_experience=years_of_experience,
-        portfolio=portfolio,
-        description=description,
-    )
+    values = {"first_name": first_name, "last_name": last_name, "phone": phone,
+              "username": username, "email": email, "years_of_experience": years_of_experience,
+              "portfolio": portfolio, "description": description}
+    try:
+        return ProfileUpdateRequest(**{key: value for key, value in values.items() if value is not None})
+    except ValidationError as exc:
+        raise RequestValidationError(exc.errors()) from exc
+
 
 @router.get("/profile", response_model=UserResponse, tags=["profile"])
 async def get_profile(current_user: User = Depends(get_current_user)):
@@ -164,3 +164,10 @@ async def refresh_tokens(data: RefreshTokenRequest, service: UsersService = Depe
 async def logout(current_user: User = Depends(get_current_user), service: UsersService = Depends(get_users_service)):
     """Revoke all sessions for this account, including current access tokens."""
     await service.logout_all(current_user.id)
+
+
+@router.patch("/profile", response_model=UserResponse, tags=["profile"])
+async def patch_profile(data: ProfileUpdateRequest, current_user: User = Depends(get_current_user),
+                        service: UsersService = Depends(get_users_service)):
+    """JSON updates support explicit null for nullable profile fields."""
+    return await service.update_profile(current_user.id, data)
